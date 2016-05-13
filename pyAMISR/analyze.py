@@ -132,7 +132,6 @@ class analyze(object):
     """
 
     import os
-    import gzip, cPickle
     import datetime as dt
 
     fileName = os.path.split(filePath)[-1].split('.')
@@ -163,6 +162,12 @@ class analyze(object):
 
     **Args**:    
       * **[maxZen]** (int or float): the minimum zenith angle to include in the plot 
+
+    **Example**:
+      ::
+        import pyAMISR
+        isr = pyAMISR.analyze('20160302.001_lp_1min.h5')
+        isr.plotPolarBeamPattern(maxZen=85)
 
     written by A. S. Reimer, 2013-07
     """
@@ -721,6 +726,8 @@ class analyze(object):
 
     import numpy as np
     if code==0:
+      #TODO, add more beam patterns
+      #Beam Pattern for 40 beam pattern
       self.beamGridInds=np.array([[ 7,22,20,23,14], \
                                   [24,25,26,27,13], \
                                   [ 6,28,29,30,31], \
@@ -762,7 +769,6 @@ class analyze(object):
     """
 
     import numpy as np
-    from models import aacgm
 
     #Get the ISR data to use
     lats = self.data['latitude']
@@ -857,6 +863,7 @@ class analyze(object):
     written by A. S. Reimer, 2013-08
     """
     import numpy as np
+
     (t,o)=self.beamGridInds.shape
     cornerLat=np.zeros((t,o,4))
     cornerLon=np.zeros((t,o,4))
