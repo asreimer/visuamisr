@@ -4,8 +4,7 @@
 import os
 # Need to use the enhanced version of distutils packaged with
 # numpy so that we can compile fortran extensions
-from setuptools import find_packages
-from numpy.distutils.core import Extension, setup
+from setuptools import find_packages, setup
 
 #############################################################################
 # First, check to make sure we are executing
@@ -24,6 +23,7 @@ def read(fname):
 # Now execute the setup
 #############################################################################
 setup(name='pyAMISR',
+      install_requires=['numpy','matplotlib','h5py'],
       version="1.0",
       description="A library of data plotting utilities for visualizing processed Advance Modular Incoherent Scatter Radar (AMISR) data.",
       author="VT SuperDARN Lab and friends",
@@ -34,7 +34,6 @@ setup(name='pyAMISR',
       long_description=read('README.md'),
       zip_safe=False,
       py_modules=['pyAMISR'],
-      install_requires=[],
       classifiers=[
             "Development Status :: 1.0 - Release",
             "Topic :: Scientific/Engineering",
