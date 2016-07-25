@@ -736,6 +736,14 @@ class analyze(object):
                                   [ 3,36,17,37,10], \
                                   [ 2,38,16,39, 9], \
                                   [ 1,40,15,41, 8]])-1
+    if code==1:
+      #Beam Patter for 42 beam grid within the 51 beam mode
+      self.beamGridInds=np.array([[45,44,48,47,46,43,42], \
+                                  [38,37,41,40,39,36,35], \
+                                  [31,30,34,33,32,29,28], \
+                                  [24,23,27,26,25,22,21], \
+                                  [17,16,20,19,18,15,14], \
+                                  [10, 9,13,12,11, 8, 7]])-1
 
 
 ####################################################################################
@@ -1080,7 +1088,7 @@ class analyze(object):
     """
 
     import numpy as np
-    import utils
+    from davitpy import utils
     from matplotlib import pyplot
     from matplotlib import colors
     import matplotlib as mpl
@@ -1201,6 +1209,98 @@ class analyze(object):
       #only show the figure if requested (useful for producing many plots)
       if show:
         fig.show()
+
+
+####################################################################################
+####################################################################################
+####################################################################################
+
+
+  def overlayBeamGrid(self, altitude, myMap=None, fill=False, fillColor='blue', sym=None, symColor='black', zorder=3, alpha=1):
+    """ Overlay horizontal beam grid at a particular altitude slice onto a basemap.
+    
+    **Args**:    
+      * **altitude** (int/float): int/float corresponding to the altitude slice to plot data at
+      * **[myMap]** (utils.mapObj): a colormap to use for each parameter
+      * **[fill]** (bool): Specify whether or not to fill the grid with a colour
+      * **[fillColor]** (str): A string describing the colour that should be used to fill with
+      * **[sym]** (list): None or list of sym[0]: symbols to plot instead of rectangles and sym[1]: size of symbol
+      * **[symColor]** (str): A string describing the colour of the symbol to plot
+      * **[zorder]** (int/float): a matplotlib zorder
+      * **[alpha]** (int/float): the transparency (0 invisible, 1 fully visible)
+
+    **Example**:
+      ::
+        import pyAMISR
+        from datetime import datetime
+        isr = pyAMISR.analyze('20160302.001_lp_1min.h5')
+        isr.getBeamGridInds(0)
+        isr.overlayBeamGrid(250.0)
+
+    written by A. S. Reimer, 2016-07
+    """
+
+    import numpy as np
+    from davitpy import utils
+    from matplotlib import pyplot
+    import matplotlib as mpl
+    import numpy as np
+    import datetime as dt
+
+
+    beams=range(0,self.numBeams)
+
+    #Get the slice to be plotted
+    temp = self.calcHorizSlice('density', altitude)
+    cornerLat=temp['cornerLat'][self.beamGridInds]
+    cornerLon=temp['cornerLon'][self.beamGridInds]
+
+    #Now we can plot the data on a map
+    #if a map object was not passed to this function, create one
+    show = False
+    if not myMap:
+      fig = pyplot.figure()
+      ax = fig.add_axes([0.1,0.1,0.8,0.8])
+      myMap = utils.mapObj(lat_0=self.siteLat,lon_0=self.siteLon,
+                           width=1.0e6,height=1.0e6,coords='geo',ax=ax)
+      show = True
+    else:
+      ax=myMap.ax
+      fig=ax.figure
+
+    #plot little rectangles or symbols for each data point and color them according to the scalar mapping we created
+    #Symbol stuff
+    if sym:
+      marker=sym[0]
+      if len(sym) > 1: 
+        symSize=sym[1]
+      else:
+        symSize=20
+
+    #plot the grid
+    bm=self.beamGridInds
+    (l,w)=bm.shape
+    for i in range(l):
+      for j in range(w):
+        try:
+          X,Y=myMap(cornerLon[i,j,:],cornerLat[i,j,:],coords='geo')
+        except:
+          X,Y=myMap(cornerLon[i,j,:],cornerLat[i,j,:])
+        if sym:
+          myMap.scatter(np.average(X),np.average(Y),color=symColor,
+                      marker=marker, s=symSize, zorder=zorder,
+                      alpha=alpha, edgecolor=symColor,latlon=False)
+        else:
+          if fill:
+            fills = ax.fill(X,Y,color=fillColor, \
+                            zorder=zorder, alpha=alpha, edgecolor='none')
+          X=X.tolist()
+          Y=Y.tolist()
+          X.append(X[0])
+          Y.append(Y[0])
+          myMap.plot(X,Y,'k',latlon=False, zorder=zorder, alpha=alpha)
+    if show:
+      fig.show()
 
 
 ####################################################################################
