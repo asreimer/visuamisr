@@ -14,7 +14,7 @@ as root, or run
 as a regular user to install `pyAMISR` to the user python site-packages directory.
 
 ###Dependencies
-This code depends on `numpy`, `matplotlib`, and `h5py`.
+This code depends on `numpy`, `matplotlib`, and `h5py`. It also makes use of the python wrapper for aacgm and the `mapObj` object in `davitpy`.
 
 
 #Usage
