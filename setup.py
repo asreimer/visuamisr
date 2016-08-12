@@ -31,7 +31,7 @@ davitpy root directory."
 # Now execute the setup
 #############################################################################
 setup(name='pyAMISR',
-      install_requires=req,
+      install_requires=req + ['pathlib2'],
       version="1.0",
       description="A library of data plotting utilities for visualizing processed Advanced Modular Incoherent Scatter Radar (AMISR) data.",
       author="VT SuperDARN Lab and friends",

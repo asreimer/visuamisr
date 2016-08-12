@@ -5,21 +5,21 @@
 .. module:: analyze
    :synopsis: Used for basic visualization of ISR data. accepts data in
               hdf5 format only. This module read data from the hdf5 in
-              tp a dictionary with the following keys where (B = 
+              tp a dictionary with the following keys where (B =
               # beams, N = # time steps, R = # range gates):
-              'az' - B length vector of azimuthal angles in degrees for 
+              'az' - B length vector of azimuthal angles in degrees for
                      each ISR beam
-              'el' - B length vector of elevation angles in degrees 
+              'el' - B length vector of elevation angles in degrees
                      for each ISR beam
               'siteLatitude' - the ISR site geographic latitude
               'siteLongitude' - the ISR site geographic longitude
-              'siteAltitude' - the ISR site altitude above sea level 
+              'siteAltitude' - the ISR site altitude above sea level
                                 in meters
-              'times' - Nx2 array of datetime describing the start and 
+              'times' - Nx2 array of datetime describing the start and
                         end times for an ISR measurement
-              'aveTimes' - N array of datetime describing the average 
+              'aveTimes' - N array of datetime describing the average
                            time for each ISR measurement
-              'altitude' - BxR array of heights above sea level in 
+              'altitude' - BxR array of heights above sea level in
                            meters for each range cell on each beam
               'range' - BxR array of range along beam direction in
                         meters for each range cell on each beam
@@ -33,7 +33,7 @@
               'evel' - NxBxR error in line of sight velocity
               'latitude' - BxR geographic latitude of each range
                                   cell
-              'longitude' - BxR geographic longitude of each 
+              'longitude' - BxR geographic longitude of each
                                    range cell
               'babs' - BxR magnitude of magnetic field in each
                               range cell
@@ -61,31 +61,64 @@ Read ISR data dictionary from hdf5 file and plot the data.
   * :func:`analyze.profilePlot`
 
 """
+from . import Path
+import h5py
+import numpy as np
+from datetime import datetime
+import calendar
+from matplotlib import pyplot
+from matplotlib import colors
+import matplotlib as mpl
+import matplotlib.cm as cmx
+from mpl_toolkits.mplot3d import Axes3D
+#
+try:
+    from davitpy import utils
+except ImportError:
+    utils=None
+
 
 
 def read_data(filepath):
 
-    import h5py as h5
-    import numpy as np
-    from datetime import datetime
-
-
     data = dict()
-    with h5.File(filepath,'r') as f:
+    with h5py.File(str(filepath),'r') as f:
 
-        data['beamcodes'] = np.array(f['BeamCodes'][:,0])
-        data['az'] = np.array(f['BeamCodes'][:,1])
-        data['el'] = np.array(f['BeamCodes'][:,2])
+        if 'BeamCodes' in f: #30 sec integrated file
+            bckey = '/BeamCodes'
+        elif 'Setup/BeamcodeMap' in f: #raw samples file
+            bckey = '/Setup/BeamcodeMap'
+        elif 'Data/Array Layout/1D Parameters/beamid' in f: # 2 minute integrated Madrigal file
+            bckey = '/Data/Array Layout/1D Parameters/beamid'
+        elif 'Data/Table Layout' in f: # old 2 minute integrated file
+            bckey = None
+        else:
+            raise ValueError('{} does not conform to expected format.'.format(filepath))
 
-        data['siteLatitude'] = f['Site']['Latitude'].value
-        data['siteLongitude'] = f['Site']['Longitude'].value
-        data['siteAltitude'] = f['Site']['Altitude'].value
-        data['siteCode'] = f['Site']['Code'].value
+        # unique for Madrigal case
+        if bckey: # newer file
+            data['beamcodes'] = np.unique(f[bckey][:,0])
+            data['az']        = np.unique(f[bckey][:,1])
+            data['el']        = np.unique(f[bckey][:,2])
+        else: # FIXME old file
+            bckey = '/Data/Table Layout'
+            data['az']        = np.unique(f[bckey]['azm'])
+            data['el']        = np.unique(f[bckey]['elm'])
+            assert data['az'].size == data['el'].size,'TODO uniquerow'
+            data['beamcodes'] = np.arange(data['az'].size)
+
+        try:
+            data['siteLatitude'] = f['Site']['Latitude'][0]
+            data['siteLongitude'] = f['Site']['Longitude'][0]
+            data['siteAltitude'] = f['Site']['Altitude'][0]
+            data['siteCode'] = f['Site']['Code'][0]
+        except KeyError: #FIXME using integrated Madrigal files, it's under /MetaData/Experiment Parameters
+            pass
 
 #Documentation for the "Fits" entry in the HDF5 file:
 #'Fitted parameters, Size: Nrecords x Nbeams x Nranges x Nions+1 x 4 (fraction, temperature, collision frequency, LOS speed), Unit: N/A, Kelvin, s^{-1}, m/s, FLAVOR: numpy'
 # So it lists ions first, electrons are the last to be listed
-        data['density'] = np.array(f['FittedParams']['Ne'])
+        data['density'] = f['FittedParams']['Ne'].value
         data['edensity'] = np.array(f['FittedParams']['dNe'])
         temp = np.array(f['FittedParams']['Fits'])
         data['Te'] = temp[:,:,:,1,1]
@@ -118,23 +151,21 @@ class analyze(object):
   def __init__(self,filePath):
     """ Read in the data to be analyzed/plotted/etc. This method expects
         the file to have been created by the gme.isr.fetchData method.
-    
-    **Args**:    
+
+    **Args**:
       * **filePath** (str): path to a datafile as output by fetchData
 
     **Example**:
       ::
         import pyAMISR
         isr = pyAMISR.analyze('20160302.001_lp_1min.h5')
-       
+
     written by A. S. Reimer, 2013-07
     modified by A. S. Reimer 2016-05
     """
+    filePath = Path(filePath).expanduser()
 
-    import os
-    import datetime as dt
-
-    fileName = os.path.split(filePath)[-1].split('.')
+    fileName = filePath.name
 
     #Read the file, but first determine whether it was gzipped or not.
     self.data = read_data(filePath)
@@ -149,7 +180,7 @@ class analyze(object):
     #Get site location info
     self.siteLat = self.data['siteLatitude']
     self.siteLon = self.data['siteLongitude']
-    self.siteAlt = self.data['siteAltitude']/1000.0 
+    self.siteAlt = self.data['siteAltitude']/1000.0
     (self.numTimes, self.numBeams, self.numRanges)=self.data['density'].shape
 
 ####################################################################################
@@ -160,8 +191,8 @@ class analyze(object):
   def plotPolarBeamPattern(self, maxZen=None):
     """ Plot the beam positions on a polar plot of azimuth and zenith angle
 
-    **Args**:    
-      * **[maxZen]** (int or float): the minimum zenith angle to include in the plot 
+    **Args**:
+      * **[maxZen]** (int or float): the minimum zenith angle to include in the plot
 
     **Example**:
       ::
@@ -171,11 +202,6 @@ class analyze(object):
 
     written by A. S. Reimer, 2013-07
     """
-
-    from matplotlib import pyplot
-    import numpy as np
-    import datetime as dt
-
     assert(not maxZen or isinstance(maxZen,(int,float))),"minZen must be None, int, or float."
     if not maxZen:
       maxZen = 70.0
@@ -218,8 +244,8 @@ class analyze(object):
 
   def rti(self, params, timeLim=None, yLim=None, cLim=None, cmap=None, bmnum=None, rang=None, show=True):
     """ Create a range time intensity plot
-    
-    **Args**:    
+
+    **Args**:
       * **params** (list): list of strings of parameters to plot: 'density','Te','Ti','velocity'
       * **[timeLim]** (list): list of datetime.datetime corresponding to start and end times to plot data from
       * **[yLim]** (list): list of int/float corresponding to range/altitude limits to plot data from
@@ -236,17 +262,10 @@ class analyze(object):
         isr.rti(['density','Te','Ti','velocity'],
                 timeLim=[datetime(2012,11,24,6,0),datetime(2012,11,24,7)],
                 yLim=[100,500],bmnum=33)
-    
+
 
     written by A. S. Reimer, 2013-07
     """
-    from matplotlib import pyplot
-    from matplotlib import dates
-    from matplotlib import colors
-    import matplotlib as mpl
-    import matplotlib.cm as cmx
-    import numpy as np
-    import datetime as dt
 
     #Check inputs
     assert(isinstance(params,list)),"params must be a list of strings"
@@ -268,12 +287,12 @@ class analyze(object):
     assert(not cLim or (isinstance(cLim,list))), \
       "cLim must be None or a list of a start and an end value in int/float"
     if cLim:
-      for l in cLim: 
+      for l in cLim:
         assert(isinstance(l[0],(int,float))),"cLim list entries must be int or float"
         assert(isinstance(l[1],(int,float))),"cLim list entries must be int or float"
         assert(l[0] < l[1]),"Starting values must be smaller than ending values."
 
-    assert(not cmap or isinstance(cmap,(matplotlib.colors.Colormap, str))), \
+    assert(not cmap or isinstance(cmap,(mpl.colors.Colormap, str))), \
       "cmap must be None, a matplotlib.colors.Colormap, or a string describing a matplotlib.colors.Colormap."
 
     assert(not bmnum or isinstance(bmnum,(int,float))),"bmnum must be None, int, or float"
@@ -287,8 +306,8 @@ class analyze(object):
       bmnum=0
 
     if not cmap:
-      cmap='jet' 
-   
+      cmap='jet'
+
     #grab parameters to be used for RTI
     t = self.data["times"]		#array of start and end times for each measurement in datetime.datetime
     cT = self.data["aveTimes"]		#array of time in middle of measurement in datetime.datetime
@@ -345,32 +364,32 @@ class analyze(object):
 
     #add a title
     self.addTitle(fig,self.sTime,'RISR-C',bmnum)
-    
+
     #iterate through the list of parameters and plot each one
     figtop = .85
     figheight = .8/len(params)
     for p in range(len(params)):
-      if (params[p] == 'density'): 
+      if (params[p] == 'density'):
         #detect if input density is log10 yet or not. If not, make it log10 of density (easier to plot)
         pArr = self.data['density'] if self.data['density'].max() < 10**8 else np.log10(self.data['density'])
         cLabel = 'Density\nlog10 /m^3)'
-      elif (params[p] == 'Te'): 
+      elif (params[p] == 'Te'):
         pArr = self.data['Te']
         cLabel = 'Te (K)'
-      elif (params[p] == 'Ti'): 
+      elif (params[p] == 'Ti'):
         pArr = self.data['Ti']
         cLabel = 'Ti (K)'
-      elif (params[p] == 'velocity'): 
+      elif (params[p] == 'velocity'):
         pArr = self.data['vel']
         cLabel = 'Vlos (m/s)'
 
-      #calculate the positions of the data axis and colorbar axis 
+      #calculate the positions of the data axis and colorbar axis
       #for the current parameter and then add them to the figure
       pos = [.1,figtop-figheight*(p+1)+.05,.74,figheight-.04]
-      cpos = [.86,figtop-figheight*(p+1)+.05,.03,figheight-.04]    
+      cpos = [.86,figtop-figheight*(p+1)+.05,.03,figheight-.04]
       ax = fig.add_axes(pos)
       cax = fig.add_axes(cpos)
-      
+
       #set the axis tick markers to face outward
       ax.yaxis.set_tick_params(direction='out')
       ax.xaxis.set_tick_params(direction='out')
@@ -413,7 +432,7 @@ class analyze(object):
       cbar = mpl.colorbar.ColorbarBase(cax,norm=cNorm,cmap=cmap)
       cbar.set_label(cLabel)
       cbar.set_ticks(np.linspace(cl[0],cl[1],num=5))
-      
+
     #finally show the figure
     if show:
       fig.show()
@@ -440,7 +459,7 @@ class analyze(object):
       * **[y]**: y value to put title at in page coords
     * **Returns**:
       *Nothing.
-    
+
     **Example**:
       ::
 
@@ -449,13 +468,10 @@ class analyze(object):
         from matplotlib import pyplot
         fig = pyplot.figure()
         pyAMISR.addTitle(fig,dt.datetime(2011,1,1),'PFISR',beam=7)
-      
+
   Written by A. S. Reimer 2013/07
   Adapted from rtiTitle in DaViTpy written by AJ 20121002
   """
-
-    import calendar
-    
     fig.text(xmin,y,rad,ha='left',weight=550)
 
     if time:
@@ -472,8 +488,8 @@ class analyze(object):
 
     if type(beam) != type(None):
       fig.text(xmax,y,'Beam '+str(beam),weight=550,ha='right')
-    
-      
+
+
 ####################################################################################
 ####################################################################################
 ####################################################################################
@@ -481,8 +497,8 @@ class analyze(object):
 
   def plotBeams3D(self, param, time, xLim=None, yLim=None, zMax=None, cLim=None, cmap=None, symSize=5):
     """ Make a plot showing ISR data along each beam in 3D.
-    
-    **Args**:    
+
+    **Args**:
       * **param** (str): The parameter to plot: 'density','Te','Ti','velocity'
       * **time** (datetime.datetime): the time to plot data for
       * **[xLim]** (list): list of int/float corresponding to latitude limits to plot data from
@@ -498,17 +514,10 @@ class analyze(object):
         from datetime import datetime
         isr = pyAMISR.analyze('20160302.001_lp_1min.h5')
         isr.plotBeams3D('density',datetime(2012,11,24,6,40),symSize=5, cLim=[10,12])
-    
+
 
     written by A. S. Reimer, 2013-08
     """
-    import numpy as np
-    from matplotlib import pyplot
-    from matplotlib import colors
-    import matplotlib as mpl
-    import matplotlib.cm as cmx
-    from mpl_toolkits.mplot3d import Axes3D
-    import datetime as dt
 
     #Check inputs
     assert(isinstance(param,str)),"params must be one of density, Te, Ti, velocity, refracind, refracindX, or refracindO."
@@ -533,9 +542,9 @@ class analyze(object):
       for l in cLim: assert(isinstance(l,(int,float))),"cLim list entries must be int or float"
       assert(cLim[0] < cLim[1]),"Starting values must be smaller than ending values."
 
-    assert(not cmap or isinstance(cmap,(matplotlib.colors.Colormap, str))), \
+    assert(not cmap or isinstance(cmap,(mpl.colors.Colormap, str))), \
       "cmap must be None, a matplotlib.colors.Colormap, or a string describing a matplotlib.colors.Colormap."
-    
+
     np.seterr(all='ignore')	#turn off numpy warnings
 
     #Use the default colormap if necessary
@@ -550,22 +559,22 @@ class analyze(object):
     #Now only proceed if the time is found
     if (len(tInd) > 0):
       tInd=tInd[0]
- 
+
       #Get parameter to plot
       lats = self.data['latitude']
       lons = self.data['longitude']
       alts = self.data['altitude']/1000.0
-      if (param == 'density'): 
+      if (param == 'density'):
         #detect if input density is log10 yet or not. If not, make it log10 of density (easier to plot)
         pArr = self.data['density'] if self.data['density'].max() < 10**8 else np.log10(self.data['density'])
         cLabel = 'Density log10 /m^3)'
-      elif (param == 'Te'): 
+      elif (param == 'Te'):
         pArr = self.data['Te']
         cLabel = 'Te (K)'
-      elif (param == 'Ti'): 
+      elif (param == 'Ti'):
         pArr = self.data['Ti']
         cLabel = 'Ti (K)'
-      elif (param == 'velocity'): 
+      elif (param == 'velocity'):
         pArr = self.data['vel']
         cLabel = 'Vlos (m/s)'
       elif (param =='refracind'):
@@ -597,13 +606,13 @@ class analyze(object):
         cl=cLim
       cNorm = colors.Normalize(vmin=cl[0], vmax=cl[1])
       scalarMap = cmx.ScalarMappable(norm=cNorm, cmap=cmap)
-  
+
       #plot the location of the radar
       ax.scatter(self.siteLon, self.siteLat, self.siteAlt, s=symSize, color='black') #scalarMap.to_rgba(10.0))
-  
+
       #Add a title
       self.addTitle(fig, self.sTime, 'RISR-C', time=times[tInd,:].tolist())
- 
+
       #Now plot the data along each beam
       (numT,numB,numR) = pArr.shape
       for b in range(numB):
@@ -618,8 +627,8 @@ class analyze(object):
         yLim = ax.get_ylim()
       if not zMax:
         zMax = 800.0
-  
-      #Change number of ticks and their spacing 
+
+      #Change number of ticks and their spacing
       ax.set_xticks(np.linspace(xLim[0],xLim[1],num=5))
       for t in ax.get_xticklabels():
         t.set_horizontalalignment('right')
@@ -628,27 +637,27 @@ class analyze(object):
         t.set_horizontalalignment('left')
       ax.view_init(elev=20, azim=-60)
       ax.set_zlim([0,zMax])
- 
+
       #Label the axes
       ax.set_xlabel('\nLongitude')
       ax.set_ylabel('\nLatitude')
       ax.set_zlabel('Altitude')
- 
+
       #add a colorbar and label it properly
-      cbar = mpl.colorbar.ColorbarBase(cax,norm=cNorm,cmap=cmap)
+      cbar = fig.colorbar(cax,norm=cNorm,cmap=cmap)
       cbar.set_label(cLabel)
       cbar.set_ticks(np.linspace(cl[0],cl[1],num=5))
- 
+
       #show the figure
       fig.show()
 
     else:
-      print "Time not found!"
+      print("Time not found!")
 
     #turn warnings back on
     np.seterr(all='warn')
 
-  
+
 ####################################################################################
 ####################################################################################
 ####################################################################################
@@ -656,8 +665,8 @@ class analyze(object):
 
   def isrBayesVelocity(self,vlosIn,kVecs,beamRanges):
     """ Following Heinselman and Nicolls (2008), calculate a velocity vector and covariance for input line of sight velocities
-    
-    **Args**:    
+
+    **Args**:
       * **vlosIn** (np.array): N column array of line of sight velocities
       * **kVecs** (np.array): Nx3 array of k-vectors of each line of sight velocity
       * **beamRanges** (np.array): N column array of range to each vlosIn
@@ -667,20 +676,19 @@ class analyze(object):
 
         from isrAnalysis import *
         isrAnalysis.isrBayesVelocity(vlosIn,kVecs,beamRanges)
-    
+
 
     .. note:: For more details on the method, see Heinselman and Nicolls, (2008) RADIO SCIENCE, VOL 43, doi:10.1029/2007RS003805
 
     written by A. S. Reimer, 2013-07
     """
-    import numpy as np
 
     #First convert ensure that vlosIn is a column vector
     nEl = max(t.shape)
     vlosIn = vlosIn.reshape(nEl,1)
 
     #Detect and remove any NaNs!
-    beamsUsed = np.isfinite(vlosIn);             
+    beamsUsed = np.isfinite(vlosIn);
     vlosIn = vlosIn[np.where(beamsUsed)]
     kVecs = kVecs[:,np.where(beamsUsed)]
     beamRanges = beamRanges[np.where(beamsUsed)]
@@ -688,7 +696,7 @@ class analyze(object):
     #Build the a priori covariance matricies
     vlosErrorSlope = 1/10.0  #1m/s covariance per 10km altitude (but quadratic relation) (per page 8 Heinselman/Nicolls 2008)
     sigmaE = np.diag((vlosErrorSlope*beamRanges)**2)  #covariance for vlosIn error (could this be calculated from vlos error in ISR data?)
-    
+
     velError=[3000,3000,15]           #covariance for bayesVel as per the paper
     sigmaV=np.diag(velError)          #a priori covariance matrix for bayesVel
 
@@ -710,8 +718,8 @@ class analyze(object):
 
   def getBeamGridInds(self,code):
     """ A function to calculate an array of indicies that can be use to plot ISR data in a grid.
-    
-    **Args**:    
+
+    **Args**:
       * **code** (int/float): the code for each beam pattern
 
     **Example**:
@@ -753,7 +761,7 @@ class analyze(object):
 
   def calcHorizSlice(self, param, altitude):
     """ A function to calculate and return ISR data, latitude, and longitude at a given altitude. This routine will automatically interpolate the data and coords into a local horizontal plane at the requested altitude.
-    
+
     **Args**:
       * **param** (str): The parameter to interpolate: 'density', 'Te', 'Ti', 'velocity', 'refracind', 'refracindO', 'refracindX'.
       * **altitude** (int/float): the altitude to calculate the data at in kilometers.
@@ -782,19 +790,19 @@ class analyze(object):
     lats = self.data['latitude']
     lons = self.data['longitude']
     alts = self.data['altitude']/1000.0
-    if (param == 'density'): 
+    if (param == 'density'):
       pArr = self.data['density']
-    elif (param == 'Te'): 
+    elif (param == 'Te'):
       pArr = self.data['Te']
-    elif (param == 'Ti'): 
+    elif (param == 'Ti'):
       pArr = self.data['Ti']
-    elif (param == 'velocity'): 
+    elif (param == 'velocity'):
       pArr = self.data['vel']
     elif (param == 'refracind'):
       pArr = self.data['refracind']
-    elif (param == 'refracindO'): 
+    elif (param == 'refracindO'):
       pArr = self.data['refracindO']
-    elif (param == 'refracindX'): 
+    elif (param == 'refracindX'):
       pArr = self.data['refracindX']
 
     #Set up some output arrays
@@ -858,7 +866,7 @@ class analyze(object):
 
   def getGridCellCorners(self,lats,lons):
     """ A function to calculate and return the corners of a grid of input latitudes and longitudes. This should usually only be used by the self.calcHorizSlice method.
-    
+
     **Args**:
       * **lats** : the interpolated latitudes from self.calcHorizSlice method.
       * **lons** : the interpolated longitudes from self.calcHorizSlice method.
@@ -892,19 +900,19 @@ class analyze(object):
         cornerLon[i,j,1]=(lon[i,j-1]+lon[i+1,j-1]+lon[i+1,j]+lon[i,j])/4
         cornerLon[i,j,2]=(lon[i,j]+lon[i+1,j]+lon[i+1,j+1]+lon[i,j+1])/4
         cornerLon[i,j,3]=(lon[i-1,j]+lon[i,j]+lon[i,j+1]+lon[i-1,j+1])/4
- 
+
     #EDGES
     for i in range(1,t):
       cornerLat[i,0,0]=2*cornerLat[i,1,0]-cornerLat[i,1,3]
       cornerLat[i,0,1]=2*cornerLat[i,1,1]-cornerLat[i,1,2]
       cornerLat[i,0,2]=cornerLat[i,1,1]
       cornerLat[i,0,3]=cornerLat[i,1,0]
-  
+
       cornerLon[i,0,0]=2*cornerLon[i,1,0]-cornerLon[i,1,3]
       cornerLon[i,0,1]=2*cornerLon[i,1,1]-cornerLon[i,1,2]
       cornerLon[i,0,2]=cornerLon[i,1,1]
       cornerLon[i,0,3]=cornerLon[i,1,0]
-  					
+
       cornerLat[i,o,3]=2*cornerLat[i,o-1,3]-cornerLat[i,o-1,0]
       cornerLat[i,o,2]=2*cornerLat[i,o-1,2]-cornerLat[i,o-1,1]
       cornerLat[i,o,1]=cornerLat[i,o-1,2]
@@ -913,7 +921,7 @@ class analyze(object):
       cornerLon[i,o,1]=cornerLon[i,o-1,2]
       cornerLon[i,o,2]=2*cornerLon[i,o-1,2]-cornerLon[i,o-1,1]
       cornerLon[i,o,3]=2*cornerLon[i,o-1,3]-cornerLon[i,o-1,0]
-  
+
 
     for i in range(1,o):
       cornerLat[0,i,0]=2*cornerLat[1,i,0]-cornerLat[1,i,1]
@@ -936,7 +944,7 @@ class analyze(object):
     cornerLat[0,0,0]=2*cornerLat[1,0,0]-cornerLat[1,0,1]
     cornerLat[0,0,1]=cornerLat[1,0,0]
     cornerLat[0,0,2]=cornerLat[1,1,0]
-    cornerLat[0,0,3]=cornerLat[0,1,0]	
+    cornerLat[0,0,3]=cornerLat[0,1,0]
     cornerLon[0,0,0]=2*cornerLon[1,0,0]-cornerLon[1,0,1]
     cornerLon[0,0,1]=cornerLon[1,0,0]
     cornerLon[0,0,2]=cornerLon[1,1,0]
@@ -993,7 +1001,7 @@ class analyze(object):
 
   def calcRefractiveIndex(self,freqHF):
     """ A function to calculate the refractive index at HF frequencies from ISR density measurements
-    
+
     **Args**:
       * **freqHF** (int/float): The HF frequency transmitted by an HF radar in MHz.
 
@@ -1043,7 +1051,7 @@ class analyze(object):
             np.sqrt(0.25*(Y*np.sin(theta))**4+(Y*np.cos(theta)*(1-X-np.complex(0,Z)))**2)/(1-X-np.complex(0,Z))  )    )
 
     #calculate the average refractive index
-    n=(nO+nX)/2.0    
+    n=(nO+nX)/2.0
 
     self.data['refracindO'] = nO
     self.data['refracindX'] = nX
@@ -1058,8 +1066,8 @@ class analyze(object):
   def overlayData(self, param, time, altitude, cLim=None, cmap=None, myMap=None, \
                   zorder=3, alpha=1, show=True, colBar=True, colPad=None, sym=None, grid=False, beams=None):
     """ Overlay ISR data at a particular altitude slice onto a basemap.
-    
-    **Args**:    
+
+    **Args**:
       * **param** (str): The parameter to plot: 'density','Te','Ti','velocity, refracind, refracindX, refracindO'
       * **time** (datetime.datetime): the time to plot data for
       * **altitude** (int/float): int/float corresponding to the altitude slice to plot data at
@@ -1087,15 +1095,6 @@ class analyze(object):
     written by A. S. Reimer, 2013-08
     """
 
-    import numpy as np
-    from davitpy import utils
-    from matplotlib import pyplot
-    from matplotlib import colors
-    import matplotlib as mpl
-    import matplotlib.cm as cmx
-    import numpy as np
-    import datetime as dt
-
     assert(colPad == None or isinstance(colPad,str)),"colPad must be None or a string describing the colorbar padding"
     if not colPad:
       colPad='5%'
@@ -1119,20 +1118,20 @@ class analyze(object):
       cornerLon=stuff['cornerLon'][self.beamGridInds]
 
 
-      if (param == 'density'): 
+      if (param == 'density'):
         #detect if input density is log10 yet or not. If not, make it log10 of density (easier to plot)
         pArr = data if data.max() < 10**8 else np.log10(data)
         cLabel = 'Density log10 /m^3)'
-      elif (param == 'Te'): 
+      elif (param == 'Te'):
         pArr = data
         cLabel = 'Te (K)'
-      elif (param == 'Ti'): 
+      elif (param == 'Ti'):
         pArr = data
         cLabel = 'Ti (K)'
-      elif (param == 'velocity'): 
+      elif (param == 'velocity'):
         pArr = data
         cLabel = 'Vlos (m/s)'
-      elif (param in ['refracind','refracindX','refracindO']): 
+      elif (param in ['refracind','refracindX','refracindO']):
         pArr = data
         cLabel = 'Refractive Index'
       #determine the parameter limits
@@ -1168,7 +1167,7 @@ class analyze(object):
       #Symbol stuff
       if sym:
         marker=sym[0]
-        if len(sym) > 1: 
+        if len(sym) > 1:
           symSize=sym[1]
         else:
           s=20
@@ -1205,7 +1204,7 @@ class analyze(object):
           cbar = mpl.colorbar.ColorbarBase(colBar,norm=cNorm,cmap=cmap)
           cbar.set_label(cLabel)
           cbar.set_ticks(np.linspace(cl[0],cl[1],num=5))
-        
+
       #only show the figure if requested (useful for producing many plots)
       if show:
         fig.show()
@@ -1218,8 +1217,8 @@ class analyze(object):
 
   def overlayBeamGrid(self, altitude, myMap=None, fill=False, fillColor='blue', sym=None, symColor='black', zorder=3, alpha=1):
     """ Overlay horizontal beam grid at a particular altitude slice onto a basemap.
-    
-    **Args**:    
+
+    **Args**:
       * **altitude** (int/float): int/float corresponding to the altitude slice to plot data at
       * **[myMap]** (utils.mapObj): a colormap to use for each parameter
       * **[fill]** (bool): Specify whether or not to fill the grid with a colour
@@ -1239,13 +1238,6 @@ class analyze(object):
 
     written by A. S. Reimer, 2016-07
     """
-
-    import numpy as np
-    from davitpy import utils
-    from matplotlib import pyplot
-    import matplotlib as mpl
-    import numpy as np
-    import datetime as dt
 
 
     beams=range(0,self.numBeams)
@@ -1272,7 +1264,7 @@ class analyze(object):
     #Symbol stuff
     if sym:
       marker=sym[0]
-      if len(sym) > 1: 
+      if len(sym) > 1:
         symSize=sym[1]
       else:
         symSize=20
@@ -1310,8 +1302,8 @@ class analyze(object):
 
   def profilePlot(self, params, time, paramLim=None, bmnum=None, yLim=None, rang=None):
     """ Create a profile plot
-    
-    **Args**:    
+
+    **Args**:
       * **params** (list): list of strings of parameters to plot: 'density','Te','Ti','velocity'
       * **time** (datetime.datetime): the time to plot data for
       * **[paramLim]** (list): list of datetime.datetime corresponding to start and end times to plot data from
@@ -1328,17 +1320,10 @@ class analyze(object):
                         datetime(2012,11,24,6,5,0),bmnum=40,
                         paramLim=[[10**10,10**12],[0,5000],[0,4000],
                                   [-1000,1000]],rang=True)
-    
+
 
     written by A. S. Reimer, 2013-09
     """
-    from matplotlib import pyplot
-    from matplotlib import dates
-    from matplotlib import colors
-    import matplotlib as mpl
-    import matplotlib.cm as cmx
-    import numpy as np
-    import datetime as dt
 
     #Check inputs
     assert(isinstance(params,list)),"params must be a list of strings"
@@ -1387,41 +1372,41 @@ class analyze(object):
         yLabel='Altitude (km)'
 
     if not yLim:
-      yLim = [0.0, 800.0]  
+      yLim = [0.0, 800.0]
 
     #set up a figure for plotting to
     fig = pyplot.figure(figsize=(11,8.5))
 
     #add a title
     self.addTitle(fig,self.sTime,'RISR-C',beam=bmnum, time=[times[tInd,0],times[tInd,1]], y=0.92)
-    
+
     #iterate through the list of parameters and plot each one
     figwidth = .75/len(params)
     for p in range(len(params)):
-      if (params[p] == 'density'): 
+      if (params[p] == 'density'):
         #detect if input density is log10 yet or not. If not, make it log10 of density (easier to plot)
         pArr = self.data['density']
         pErr = self.data['edensity']
         pLabel = 'Density (/m^3)'
-      elif (params[p] == 'Te'): 
+      elif (params[p] == 'Te'):
         pArr = self.data['Te']
         pErr = self.data['eTe']
         pLabel = 'Te (K)'
-      elif (params[p] == 'Ti'): 
+      elif (params[p] == 'Ti'):
         pArr = self.data['Ti']
         pErr = self.data['eTi']
         pLabel = 'Ti (K)'
-      elif (params[p] == 'velocity'): 
+      elif (params[p] == 'velocity'):
         pArr = self.data['vel']
         pErr = self.data['evel']
         pLabel = 'Vlos (m/s)'
 
-      #calculate the positions of the data axis and colorbar axis 
+      #calculate the positions of the data axis and colorbar axis
       #for the current parameter and then add them to the figure
       pos = [.1 + (figwidth+0.025)*(p), 0.15, figwidth-0.025, 0.75]
-   
+
       ax = fig.add_axes(pos)
-      
+
       if (params[p] == 'density'): ax.set_xscale('log')
       #set the axis tick markers to face outward
       ax.yaxis.set_tick_params(direction='out')
@@ -1472,7 +1457,7 @@ class analyze(object):
       #plot the data
       fills = ax.errorbar(pArr[tInd,bmnum,:],r[bmnum,:]/1000.0,xerr=pErr[tInd,bmnum,:])
       fills = ax.scatter(pArr[tInd,bmnum,:],r[bmnum,:]/1000.0)
-     
+
     #finally show the figure
     fig.show()
 
