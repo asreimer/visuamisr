@@ -2,9 +2,19 @@
 # Copyright (C) 2013  Ashton S. Reimer
 # Full license can be found in LICENSE.txt
 import os
-# Need to use the enhanced version of distutils packaged with
-# numpy so that we can compile fortran extensions
 from setuptools import find_packages, setup
+import subprocess
+
+def read(fname):
+    return open(os.path.join(os.path.dirname(__file__), fname)).readlines()
+
+
+try:
+    subprocess.call(['conda','install','--file','requirements.txt'])
+    req = []
+except Exception:
+    req = read('requirements.txt')
+
 
 #############################################################################
 # First, check to make sure we are executing
@@ -16,22 +26,20 @@ assert('setup.py' in os.listdir(path)), \
        "You must execute 'python setup.py install' from within the \
 davitpy root directory."
 
-def read(fname):
-    return open(os.path.join(os.path.dirname(__file__), fname)).read()
 
 #############################################################################
 # Now execute the setup
 #############################################################################
 setup(name='pyAMISR',
-      install_requires=['numpy','matplotlib','h5py'],
+      install_requires=req + ['pathlib2'],
       version="1.0",
-      description="A library of data plotting utilities for visualizing processed Advance Modular Incoherent Scatter Radar (AMISR) data.",
+      description="A library of data plotting utilities for visualizing processed Advanced Modular Incoherent Scatter Radar (AMISR) data.",
       author="VT SuperDARN Lab and friends",
       author_email="ashtonsethreimer@gmail.com",
-      url="",
+      url="https://github.com/asreimer/pyAMISR",
       download_url="https://github.com/asreimer/pyAMISR",
       packages=find_packages(),
-      long_description=read('README.md'),
+      long_description=read('README.rst'),
       zip_safe=False,
       py_modules=['pyAMISR'],
       classifiers=[

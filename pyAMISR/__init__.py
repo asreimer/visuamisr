@@ -15,6 +15,10 @@ analyze       Plotting utilities
 
 """
 try:
-	from analyze import *
-except Exception, e:
-    print 'Problem importing from analyze.py: ' + str(e)
+    from pathlib import Path
+    Path().expanduser()
+except (ImportError,AttributeError):
+    from pathlib2 import Path
+
+from .analyze import *
+
