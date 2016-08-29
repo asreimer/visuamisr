@@ -68,6 +68,7 @@ from datetime import datetime
 import calendar
 from matplotlib import pyplot
 from matplotlib import colors
+from matplotlib import dates
 import matplotlib as mpl
 import matplotlib.cm as cmx
 from mpl_toolkits.mplot3d import Axes3D
@@ -78,6 +79,8 @@ except ImportError:
     utils=None
 
 
+# Dictionary of site code number/radar name pairs
+siteCodeDict = {91: 'RISR-N', 92: 'RISR-C', 61: 'PFISR'}
 
 def read_data(filepath):
 
@@ -95,8 +98,15 @@ def read_data(filepath):
         else:
             raise ValueError('{} does not conform to expected format.'.format(filepath))
 
+        # SRI file format        
+        if bckey == '/BeamCodes':
+            data['beamcodes'] = np.array(f['BeamCodes'][:,0])
+            data['az'] = np.array(f['BeamCodes'][:,1])
+            data['el'] = np.array(f['BeamCodes'][:,2])
+
         # unique for Madrigal case
-        if bckey: # newer file
+        # Why are we using np.unique here? It breaks things.
+        elif bckey: # newer file
             data['beamcodes'] = np.unique(f[bckey][:,0])
             data['az']        = np.unique(f[bckey][:,1])
             data['el']        = np.unique(f[bckey][:,2])
@@ -108,12 +118,19 @@ def read_data(filepath):
             data['beamcodes'] = np.arange(data['az'].size)
 
         try:
-            data['siteLatitude'] = f['Site']['Latitude'][0]
-            data['siteLongitude'] = f['Site']['Longitude'][0]
-            data['siteAltitude'] = f['Site']['Altitude'][0]
-            data['siteCode'] = f['Site']['Code'][0]
+            data['siteLatitude'] = f['Site']['Latitude'].value
+            data['siteLongitude'] = f['Site']['Longitude'].value
+            data['siteAltitude'] = f['Site']['Altitude'].value
+            data['siteCode'] = f['Site']['Code'].value
         except KeyError: #FIXME using integrated Madrigal files, it's under /MetaData/Experiment Parameters
             pass
+
+        try:
+            data['siteName'] = siteCodeDict[data['siteCode']]
+        except KeyError:
+            data['siteName'] = ''
+            print("Site code not in known list, site name not automatically set. "
+                  + "You can manually set the name in the data['siteName'] attribute.")
 
 #Documentation for the "Fits" entry in the HDF5 file:
 #'Fitted parameters, Size: Nrecords x Nbeams x Nranges x Nions+1 x 4 (fraction, temperature, collision frequency, LOS speed), Unit: N/A, Kelvin, s^{-1}, m/s, FLAVOR: numpy'
@@ -275,7 +292,7 @@ class analyze(object):
     assert(not timeLim or (isinstance(timeLim,list) and len(timeLim) == 2)), \
       "timeLim must be None or a list of a start and an end time in datetime.datetime"
     if timeLim:
-      for l in timeLim: assert(isinstance(l,dt.datetime)),"timeLim list entries must be datetime.datetime"
+      for l in timeLim: assert(isinstance(l,datetime)),"timeLim list entries must be datetime.datetime"
       assert(timeLim[0] < timeLim[1]),"In this program, we prefer to move forward in time."
 
     assert(not yLim or (isinstance(yLim,list) and len(yLim) == 2)), \
@@ -333,7 +350,7 @@ class analyze(object):
     #Set up x and y "coordinates" for use with pyplot.fill
     lt = len(t)
     lr = len(r.T)
-    x = np.ndarray((lr,lt,4),dtype=dt.datetime)
+    x = np.ndarray((lr,lt,4),dtype=datetime)
     y = np.zeros((lr,lt,4))
 
 
@@ -363,7 +380,7 @@ class analyze(object):
     fig = pyplot.figure(figsize=(11,8.5))
 
     #add a title
-    self.addTitle(fig,self.sTime,'RISR-C',bmnum)
+    self.addTitle(fig,self.sTime,self.data['siteName'],bmnum)
 
     #iterate through the list of parameters and plot each one
     figtop = .85
@@ -463,11 +480,11 @@ class analyze(object):
     **Example**:
       ::
 
-        import datetime as dt
+        from datetime import datetime
         import pyAMISR
         from matplotlib import pyplot
         fig = pyplot.figure()
-        pyAMISR.addTitle(fig,dt.datetime(2011,1,1),'PFISR',beam=7)
+        pyAMISR.addTitle(fig,datetime(2011,1,1),'PFISR',beam=7)
 
   Written by A. S. Reimer 2013/07
   Adapted from rtiTitle in DaViTpy written by AJ 20121002
@@ -521,7 +538,7 @@ class analyze(object):
 
     #Check inputs
     assert(isinstance(param,str)),"params must be one of density, Te, Ti, velocity, refracind, refracindX, or refracindO."
-    assert(isinstance(time,dt.datetime)),"time must be datetime.datetime"
+    assert(isinstance(time,datetime)),"time must be datetime.datetime"
     assert(not xLim or (isinstance(xLim,list) and len(xLim) == 2)), \
       "xLim must be None or a list of a start and an end Latitude"
     if xLim:
@@ -557,102 +574,103 @@ class analyze(object):
     tInd = np.where(np.logical_and(np.array(time) >= times[:,0], np.array(time) <= times[:,1]))[0].tolist()
 
     #Now only proceed if the time is found
-    if (len(tInd) > 0):
-      tInd=tInd[0]
-
-      #Get parameter to plot
-      lats = self.data['latitude']
-      lons = self.data['longitude']
-      alts = self.data['altitude']/1000.0
-      if (param == 'density'):
-        #detect if input density is log10 yet or not. If not, make it log10 of density (easier to plot)
-        pArr = self.data['density'] if self.data['density'].max() < 10**8 else np.log10(self.data['density'])
-        cLabel = 'Density log10 /m^3)'
-      elif (param == 'Te'):
-        pArr = self.data['Te']
-        cLabel = 'Te (K)'
-      elif (param == 'Ti'):
-        pArr = self.data['Ti']
-        cLabel = 'Ti (K)'
-      elif (param == 'velocity'):
-        pArr = self.data['vel']
-        cLabel = 'Vlos (m/s)'
-      elif (param =='refracind'):
-        pArr = self.data['refracind']
-        cLabel = 'Refractive Index'
-      elif (param =='refracindX'):
-        pArr = self.data['refracindX']
-        cLabel = 'Refractive Index'
-      elif (param =='refracindO'):
-        pArr = self.data['refracindO']
-        cLabel = 'Refractive Index'
-
-      #First create a figure with a 3D projection axis
-      fig = pyplot.figure()
-      ax = fig.add_axes([0.00, 0.05, 0.74, 0.9],projection='3d')
-      ax.patch.set_fill(0)
-      cax = fig.add_axes([0.80, 0.2,.03, 0.6])
-
-      #set the axis tick markers to face outward
-      ax.yaxis.set_tick_params(direction='out')
-      ax.xaxis.set_tick_params(direction='out')
-      ax.yaxis.set_tick_params(direction='out',which='minor')
-      ax.xaxis.set_tick_params(direction='out',which='minor')
-
-      #generate a scalar colormapping to map data to cmap
-      if not cLim:
-        cl=[9,12]
-      else:
-        cl=cLim
-      cNorm = colors.Normalize(vmin=cl[0], vmax=cl[1])
-      scalarMap = cmx.ScalarMappable(norm=cNorm, cmap=cmap)
-
-      #plot the location of the radar
-      ax.scatter(self.siteLon, self.siteLat, self.siteAlt, s=symSize, color='black') #scalarMap.to_rgba(10.0))
-
-      #Add a title
-      self.addTitle(fig, self.sTime, 'RISR-C', time=times[tInd,:].tolist())
-
-      #Now plot the data along each beam
-      (numT,numB,numR) = pArr.shape
-      for b in range(numB):
-        for r in range(numR):
-          if np.isfinite(pArr[tInd,b,r]):
-            ax.scatter(lons[b,r], lats[b,r], alts[b,r], s=symSize, color=scalarMap.to_rgba(pArr[tInd,b,r]))
-
-      #set X, Y, and Z limits if necessary
-      if not xLim:
-        xLim = ax.get_xlim()
-      if not yLim:
-        yLim = ax.get_ylim()
-      if not zMax:
-        zMax = 800.0
-
-      #Change number of ticks and their spacing
-      ax.set_xticks(np.linspace(xLim[0],xLim[1],num=5))
-      for t in ax.get_xticklabels():
-        t.set_horizontalalignment('right')
-      ax.set_yticks(np.linspace(yLim[0],yLim[1],num=5))
-      for t in ax.get_yticklabels():
-        t.set_horizontalalignment('left')
-      ax.view_init(elev=20, azim=-60)
-      ax.set_zlim([0,zMax])
-
-      #Label the axes
-      ax.set_xlabel('\nLongitude')
-      ax.set_ylabel('\nLatitude')
-      ax.set_zlabel('Altitude')
-
-      #add a colorbar and label it properly
-      cbar = fig.colorbar(cax,norm=cNorm,cmap=cmap)
-      cbar.set_label(cLabel)
-      cbar.set_ticks(np.linspace(cl[0],cl[1],num=5))
-
-      #show the figure
-      fig.show()
-
-    else:
+    if len(tInd) == 0:
       print("Time not found!")
+      return
+
+    tInd=tInd[0]
+
+    #Get parameter to plot
+    lats = self.data['latitude']
+    lons = self.data['longitude']
+    alts = self.data['altitude']/1000.0
+    if (param == 'density'):
+      #detect if input density is log10 yet or not. If not, make it log10 of density (easier to plot)
+      pArr = self.data['density'] if self.data['density'].max() < 10**8 else np.log10(self.data['density'])
+      cLabel = 'Density log10 /m^3)'
+    elif (param == 'Te'):
+      pArr = self.data['Te']
+      cLabel = 'Te (K)'
+    elif (param == 'Ti'):
+      pArr = self.data['Ti']
+      cLabel = 'Ti (K)'
+    elif (param == 'velocity'):
+      pArr = self.data['vel']
+      cLabel = 'Vlos (m/s)'
+    elif (param =='refracind'):
+      pArr = self.data['refracind']
+      cLabel = 'Refractive Index'
+    elif (param =='refracindX'):
+      pArr = self.data['refracindX']
+      cLabel = 'Refractive Index'
+    elif (param =='refracindO'):
+      pArr = self.data['refracindO']
+      cLabel = 'Refractive Index'
+
+    #First create a figure with a 3D projection axis
+    fig = pyplot.figure()
+    ax = fig.add_axes([0.00, 0.05, 0.74, 0.9],projection='3d')
+    ax.patch.set_fill(0)
+    cax = fig.add_axes([0.80, 0.2,.03, 0.6])
+
+    #set the axis tick markers to face outward
+    ax.yaxis.set_tick_params(direction='out')
+    ax.xaxis.set_tick_params(direction='out')
+    ax.yaxis.set_tick_params(direction='out',which='minor')
+    ax.xaxis.set_tick_params(direction='out',which='minor')
+
+    #generate a scalar colormapping to map data to cmap
+    if not cLim:
+      cl=[9,12]
+    else:
+      cl=cLim
+    cNorm = colors.Normalize(vmin=cl[0], vmax=cl[1])
+    scalarMap = cmx.ScalarMappable(norm=cNorm, cmap=cmap)
+
+    #plot the location of the radar
+    ax.scatter(self.siteLon, self.siteLat, self.siteAlt, s=symSize, c='black') #scalarMap.to_rgba(10.0))
+
+    #Add a title
+    self.addTitle(fig, self.sTime, self.data['siteName'], time=times[tInd,:].tolist())
+
+    #Now plot the data along each beam
+    (numT,numB,numR) = pArr.shape
+    for b in range(numB):
+      for r in range(numR):
+        if np.isfinite(pArr[tInd,b,r]):
+          ax.scatter(lons[b,r], lats[b,r], alts[b,r], s=symSize,
+                      c=scalarMap.to_rgba(pArr[tInd,b,r]), edgecolors=scalarMap.to_rgba(pArr[tInd,b,r]))
+
+    #set X, Y, and Z limits if necessary
+    if not xLim:
+      xLim = ax.get_xlim()
+    if not yLim:
+      yLim = ax.get_ylim()
+    if not zMax:
+      zMax = 800.0
+
+    #Change number of ticks and their spacing
+    ax.set_xticks(np.linspace(xLim[0],xLim[1],num=5))
+    for t in ax.get_xticklabels():
+      t.set_horizontalalignment('right')
+    ax.set_yticks(np.linspace(yLim[0],yLim[1],num=5))
+    for t in ax.get_yticklabels():
+      t.set_horizontalalignment('left')
+    ax.view_init(elev=20, azim=-60)
+    ax.set_zlim([0,zMax])
+
+    #Label the axes
+    ax.set_xlabel('\nLongitude')
+    ax.set_ylabel('\nLatitude')
+    ax.set_zlabel('Altitude')
+
+    #add a colorbar and label it properly
+    cbar = mpl.colorbar.ColorbarBase(cax,norm=cNorm,cmap=cmap)
+    cbar.set_label(cLabel)
+    cbar.set_ticks(np.linspace(cl[0],cl[1],num=5))
+
+    #show the figure
+    fig.show()
 
     #turn warnings back on
     np.seterr(all='warn')
@@ -1357,19 +1375,22 @@ class analyze(object):
     tInd = np.where(np.logical_and(np.array(time) >= times[:,0], np.array(time) <= times[:,1]))[0].tolist()
 
     #Now only proceed if the time is found
-    if (len(tInd) > 0):
-      tInd=tInd[0]
+    if len(tInd) == 0:
+      print("Time not found!")
+      return
+
+    tInd=tInd[0]
 
     #grab parameters to be used for RTI
-      t = self.data["times"]		#array of start and end times for each measurement in datetime.datetime
-      cT = self.data["aveTimes"]	#array of time in middle of measurement in datetime.datetime
+    t = self.data["times"]		#array of start and end times for each measurement in datetime.datetime
+    cT = self.data["aveTimes"]	#array of time in middle of measurement in datetime.datetime
 
-      if rang:
-        r = self.data["range"]		#array of central range of each measurement
-        yLabel='Range (km)'
-      else:
-        r = self.data["altitude"]
-        yLabel='Altitude (km)'
+    if rang:
+      r = self.data["range"]		#array of central range of each measurement
+      yLabel='Range (km)'
+    else:
+      r = self.data["altitude"]
+      yLabel='Altitude (km)'
 
     if not yLim:
       yLim = [0.0, 800.0]
@@ -1378,7 +1399,7 @@ class analyze(object):
     fig = pyplot.figure(figsize=(11,8.5))
 
     #add a title
-    self.addTitle(fig,self.sTime,'RISR-C',beam=bmnum, time=[times[tInd,0],times[tInd,1]], y=0.92)
+    self.addTitle(fig,self.sTime, self.data['siteName'],beam=bmnum, time=[times[tInd,0],times[tInd,1]], y=0.92)
 
     #iterate through the list of parameters and plot each one
     figwidth = .75/len(params)
