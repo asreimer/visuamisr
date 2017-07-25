@@ -1219,9 +1219,10 @@ class analyze(object):
         if type(colBar) == bool:
           cax, _ = mpl.colorbar.make_axes(ax,location='right')
         else:
-          cbar = mpl.colorbar.ColorbarBase(colBar,norm=cNorm,cmap=cmap)
-          cbar.set_label(cLabel)
-          cbar.set_ticks(np.linspace(cl[0],cl[1],num=5))
+          cax = colBar
+        cbar = mpl.colorbar.ColorbarBase(cax,norm=cNorm,cmap=cmap)
+        cbar.set_label(cLabel)
+        cbar.set_ticks(np.linspace(cl[0],cl[1],num=5))
 
       #only show the figure if requested (useful for producing many plots)
       if show:
