@@ -25,6 +25,8 @@
                         meters for each range cell on each beam
               'density' - NxBxR electron density (not log10)
               'edensity' - NxBxR error in electron density (not log10)
+              'density_uncor' - NxBxR uncorrected electron density (not log10)
+              'edensity_uncor' - NxBxR error in uncorrected electron density (not log10)
               'Te' - NxBxR electron temperature in Kelvin
               'eTe' - NxBxR error in electron density
               'Ti' - NxBxR ion temperature in Kelvin
@@ -135,18 +137,27 @@ def read_data(filepath):
 #Documentation for the "Fits" entry in the HDF5 file:
 #'Fitted parameters, Size: Nrecords x Nbeams x Nranges x Nions+1 x 4 (fraction, temperature, collision frequency, LOS speed), Unit: N/A, Kelvin, s^{-1}, m/s, FLAVOR: numpy'
 # So it lists ions first, electrons are the last to be listed
-        data['density'] = f['FittedParams']['Ne'].value
-        data['edensity'] = np.array(f['FittedParams']['dNe'])
-        temp = np.array(f['FittedParams']['Fits'])
-        data['Te'] = temp[:,:,:,1,1]
-        data['Ti'] = temp[:,:,:,0,1]
-        data['vel'] = temp[:,:,:,1,3]
-        temp = np.array(f['FittedParams']['Errors'])
-        data['eTe'] = temp[:,:,:,1,1]
-        data['eTi'] = temp[:,:,:,0,1]
-        data['evel'] = temp[:,:,:,1,3]
-        data['range'] = np.array(f['FittedParams']['Range'])
-        data['altitude'] = np.array(f['FittedParams']['Altitude'])
+        if 'FittedParams' in f.keys():
+          data['density'] = np.array(f['FittedParams']['Ne'])
+          data['edensity'] = np.array(f['FittedParams']['dNe'])
+          temp = np.array(f['FittedParams']['Fits'])
+          data['Te'] = temp[:,:,:,1,1]
+          data['Ti'] = temp[:,:,:,0,1]
+          data['vel'] = temp[:,:,:,1,3]
+          temp = np.array(f['FittedParams']['Errors'])
+          data['eTe'] = temp[:,:,:,1,1]
+          data['eTi'] = temp[:,:,:,0,1]
+          data['evel'] = temp[:,:,:,1,3]
+          data['range'] = np.array(f['FittedParams']['Range'])
+          data['altitude'] = np.array(f['FittedParams']['Altitude'])
+        else:
+          data['altitude'] = np.array(f['Geomag']['Altitude'])
+          print("No fitted data found, so none read.")
+
+        data['density_uncor'] = np.array(f['NeFromPower']['Ne_NoTr'])
+        data['edensity_uncor'] = np.array(f['NeFromPower']['dNeFrac'])
+        data['altitude_uncor'] = np.array(f['NeFromPower']['Altitude'])
+
         data['latitude'] = np.array(f['Geomag']['Latitude'])
         data['longitude'] = np.array(f['Geomag']['Longitude'])
 
@@ -198,7 +209,7 @@ class analyze(object):
     self.siteLat = self.data['siteLatitude']
     self.siteLon = self.data['siteLongitude']
     self.siteAlt = self.data['siteAltitude']/1000.0
-    (self.numTimes, self.numBeams, self.numRanges)=self.data['density'].shape
+    (self.numTimes, self.numBeams, _)=self.data['density_uncor'].shape
 
 ####################################################################################
 ####################################################################################
@@ -807,9 +818,13 @@ class analyze(object):
     #Get the ISR data to use
     lats = self.data['latitude']
     lons = self.data['longitude']
-    alts = self.data['altitude']/1000.0
+    lat_lon_alts = self.data['altitude']/1000.0
+
     if (param == 'density'):
       pArr = self.data['density']
+    elif (param == 'density_uncor'):
+      pArr = self.data['density_uncor']
+      alts = self.data['altitude_uncor']/1000.0
     elif (param == 'Te'):
       pArr = self.data['Te']
     elif (param == 'Ti'):
@@ -829,15 +844,18 @@ class analyze(object):
     latOut = np.zeros((numB))
     lonOut = np.zeros((numB))
 
+    print(lats.shape)
+    print(latOut.shape)
+
     #Loop through each beam
     for b in range(numB):
+      # Do data first
       #first check to see if requested altitude is equal to exisiting altitude
       rInd_eq = np.where(np.array(altitude) == alts[b,:])[0].tolist()
       if len(rInd_eq) == 0:
         #now get the indicies for the altitude above and below the requested altitude
         rInd_p = np.where(alts[b,:]-np.array(altitude) > 0)[0].tolist()
         rInd_m = np.where(np.array(altitude)-alts[b,:] > 0)[0].tolist()
-
         if (len(rInd_p) > 0 and len(rInd_m) > 0):
           #if they are found then calculate the weighted average of
           rInd_p=rInd_p[0]
@@ -849,18 +867,43 @@ class analyze(object):
           dm=altitude-alt_m
           dt=dp+dm
 
-          #lats, lons, and data
+          #data
           pOut[:,b]=pArr[:,b,rInd_p]*dm/dt + pArr[:,b,rInd_m]*dp/dt
+        else:
+          #if no data found, set things to NaN
+          pOut[:,b]=np.zeros(numT)*np.nan
+      else:
+        rInd_eq=rInd_eq[0]
+        pOut[:,b]=pArr[:,b,rInd_eq]
+
+      # Now to lats and lons
+      #first check to see if requested altitude is equal to exisiting altitude
+      rInd_eq = np.where(np.array(altitude) == lat_lon_alts[b,:])[0].tolist()
+      if len(rInd_eq) == 0:
+        #now get the indicies for the altitude above and below the requested altitude
+        rInd_p = np.where(lat_lon_alts[b,:]-np.array(altitude) > 0)[0].tolist()
+        rInd_m = np.where(np.array(altitude)-lat_lon_alts[b,:] > 0)[0].tolist()
+
+        if (len(rInd_p) > 0 and len(rInd_m) > 0):
+          #if they are found then calculate the weighted average of
+          rInd_p=rInd_p[0]
+          rInd_m=rInd_m[-1]
+
+          alt_p=lat_lon_alts[b,rInd_p]
+          alt_m=lat_lon_alts[b,rInd_m]
+          dp=alt_p-altitude
+          dm=altitude-alt_m
+          dt=dp+dm
+
+          #lats and lons
           latOut[b]=lats[b,rInd_p]*dm/dt + lats[b,rInd_m]*dp/dt
           lonOut[b]=lons[b,rInd_p]*dm/dt + lons[b,rInd_m]*dp/dt
         else:
           #if no data found, set things to NaN
-          pOut[:,b]=np.zeros(numT)*np.nan
           latOut[b]=np.nan
           lonOut[b]=np.nan
       else:
         rInd_eq=rInd_eq[0]
-        pOut[:,b]=pArr[:,b,rInd_eq]
         latOut[b]=lats[b,rInd_eq]
         lonOut[b]=lons[b,rInd_eq]
 
@@ -1140,6 +1183,10 @@ class analyze(object):
         #detect if input density is log10 yet or not. If not, make it log10 of density (easier to plot)
         pArr = data if data.max() < 10**8 else np.log10(data)
         cLabel = 'Density log10 /m^3)'
+      if (param == 'density_uncor'):
+        #detect if input density is log10 yet or not. If not, make it log10 of density (easier to plot)
+        pArr = data if data.max() < 10**8 else np.log10(data)
+        cLabel = 'Uncorrected Density log10 /m^3)'
       elif (param == 'Te'):
         pArr = data
         cLabel = 'Te (K)'
