@@ -844,9 +844,6 @@ class analyze(object):
     latOut = np.zeros((numB))
     lonOut = np.zeros((numB))
 
-    print(lats.shape)
-    print(latOut.shape)
-
     #Loop through each beam
     for b in range(numB):
       # Do data first
