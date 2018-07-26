@@ -29,7 +29,7 @@ repo root directory."
 # Now execute the setup
 #############################################################################
 setup(name='pyAMISR',
-      install_requires=requirements
+      install_requires=requirements,
       version="1.1",
       description="A library of data plotting utilities for visualizing processed Advanced Modular Incoherent Scatter Radar (AMISR) data.",
       author="Ashton S. Reimer",
