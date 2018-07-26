@@ -14,6 +14,10 @@ except Exception:
     pass
 
 
+def read(fname):
+    return open(os.path.join(os.path.dirname(__file__), fname)).readlines()
+
+
 #############################################################################
 # First, check to make sure we are executing
 # 'python setup.py install' from the same directory
