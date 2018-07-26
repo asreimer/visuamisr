@@ -655,7 +655,7 @@ class analyze(object):
     ax.scatter(self.siteLon, self.siteLat, self.siteAlt, s=symSize, c='black') #scalarMap.to_rgba(10.0))
 
     #Add a title
-    self.addTitle(fig, self.sTime, self.data['siteName'], time=times[tInd,:].tolist())
+    self.addTitle(fig, times[tInd,0], self.data['siteName'], time=times[tInd,:].tolist())
 
     #Now plot the data along each beam
     (numT,numB,numR) = pArr.shape
