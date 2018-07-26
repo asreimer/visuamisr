@@ -5,15 +5,13 @@ import os
 from setuptools import find_packages, setup
 import subprocess
 
-def read(fname):
-    return open(os.path.join(os.path.dirname(__file__), fname)).readlines()
-
+requirements = ['pathlib2','cartopy','numpy','matplotlib','h5py']
 
 try:
-    subprocess.call(['conda','install','--file','requirements.txt'])
-    req = []
+    subprocess.call(['conda','install',' '.join(requirements)])
+    requirements = []
 except Exception:
-    req = read('requirements.txt')
+    pass
 
 
 #############################################################################
@@ -24,17 +22,17 @@ except Exception:
 path = os.getcwd()
 assert('setup.py' in os.listdir(path)), \
        "You must execute 'python setup.py install' from within the \
-davitpy root directory."
+repo root directory."
 
 
 #############################################################################
 # Now execute the setup
 #############################################################################
 setup(name='pyAMISR',
-      install_requires=req + ['pathlib2'],
-      version="1.0",
+      install_requires=requirements
+      version="1.1",
       description="A library of data plotting utilities for visualizing processed Advanced Modular Incoherent Scatter Radar (AMISR) data.",
-      author="VT SuperDARN Lab and friends",
+      author="Ashton S. Reimer",
       author_email="ashtonsethreimer@gmail.com",
       url="https://github.com/asreimer/pyAMISR",
       download_url="https://github.com/asreimer/pyAMISR",
@@ -43,7 +41,7 @@ setup(name='pyAMISR',
       zip_safe=False,
       py_modules=['pyAMISR'],
       classifiers=[
-            "Development Status :: 1.0 - Release",
+            "Development Status :: 1.1 - Release",
             "Topic :: Scientific/Engineering",
             "Intended Audience :: Science/Research",
             "License :: OSI Approved :: GNU General Public License (GPL)",

@@ -1,3 +1,0 @@
-matplotlib
-h5py
-numpy
