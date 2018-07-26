@@ -59,7 +59,6 @@ Read ISR data dictionary from hdf5 file and plot the data.
   * :func:`analyze.calcHorizSlice`
   * :func:`analyze.getGridCellCorners`
   * :func:`analyze.calcRefractiveIndex`
-  * :func:`analyze.overlayData`
   * :func:`analyze.profilePlot`
 
 """
@@ -76,9 +75,9 @@ import matplotlib.cm as cmx
 from mpl_toolkits.mplot3d import Axes3D
 #
 try:
-    from davitpy import utils
+    import cartopy
 except ImportError:
-    utils=None
+    cartopy = None
 
 
 # Dictionary of site code number/radar name pairs
@@ -211,6 +210,13 @@ class analyze(object):
     self.siteAlt = self.data['siteAltitude']/1000.0
     (self.numTimes, self.numBeams, _)=self.data['density_uncor'].shape
 
+    if not cartopy is None:
+      self.default_projection = cartopy.crs.Mercator(central_longitude=self.siteLon,
+                                                     min_latitude=self.siteLat-10,
+                                                     max_latitude=self.siteLat+10,
+                                                     latitude_true_scale=self.siteLat
+                                                    )
+
 ####################################################################################
 ####################################################################################
 ####################################################################################
@@ -320,8 +326,8 @@ class analyze(object):
         assert(isinstance(l[1],(int,float))),"cLim list entries must be int or float"
         assert(l[0] < l[1]),"Starting values must be smaller than ending values."
 
-    assert(not cmap or isinstance(cmap,(mpl.colors.Colormap, str))), \
-      "cmap must be None, a matplotlib.colors.Colormap, or a string describing a matplotlib.colors.Colormap."
+    assert(not cmap or isinstance(cmap,(mpl.colors.Colormap, str, list))), \
+      "cmap must be None, a matplotlib.colors.Colormap, or a string describing a matplotlib.colors.Colormap, or a list of colormaps"
 
     assert(not bmnum or isinstance(bmnum,(int,float))),"bmnum must be None, int, or float"
 
@@ -335,6 +341,11 @@ class analyze(object):
 
     if not cmap:
       cmap='jet'
+
+    if isinstance(cmap,str):
+      cmaps = [cmap] * len(params)
+    else:
+      cmaps = cmap
 
     #grab parameters to be used for RTI
     t = self.data["times"]		#array of start and end times for each measurement in datetime.datetime
@@ -410,6 +421,8 @@ class analyze(object):
       elif (params[p] == 'velocity'):
         pArr = self.data['vel']
         cLabel = 'Vlos (m/s)'
+
+      cmap = cmaps[p]
 
       #calculate the positions of the data axis and colorbar axis
       #for the current parameter and then add them to the figure
@@ -1115,249 +1128,6 @@ class analyze(object):
     self.data['refracindX'] = nX
     self.data['refracind'] = n
 
-
-####################################################################################
-####################################################################################
-####################################################################################
-
-
-  def overlayData(self, param, time, altitude, cLim=None, cmap=None, myMap=None, \
-                  zorder=3, alpha=1, show=True, colBar=True, colPad=None, sym=None, grid=False, beams=None):
-    """ Overlay ISR data at a particular altitude slice onto a basemap.
-
-    **Args**:
-      * **param** (str): The parameter to plot: 'density','Te','Ti','velocity, refracind, refracindX, refracindO'
-      * **time** (datetime.datetime): the time to plot data for
-      * **altitude** (int/float): int/float corresponding to the altitude slice to plot data at
-      * **[cLim]** (list): list of lists containing the colorbar limits for each parameter plotted
-      * **[cmap]** (matplotlib.colors.Colormap): a colormap to use for each parameter
-      * **[myMap]** (utils.mapObj): a colormap to use for each parameter
-      * **[zorder]** (int/float): a matplotlib zorder
-      * **[alpha]** (int/float): the transparency (0 invisible, 1 fully visible)
-      * **[show]** (boolean): whether or not to show the plot
-      * **[colBar]** (boolean): plot a colorbar
-      * **[colPad]** (str): None or string corresponding to colorbar padding (default '5%').
-      * **[sym]** (list): None or list of sym[0]: symbols to plot instead of rectangles and sym[1]: size of symbol
-      * **[grid]** (boolean): None or True to specify whether or not to plot a grid
-      * **[beams]** (list): list of beams to plot
-
-    **Example**:
-      ::
-        import pyAMISR
-        from datetime import datetime
-        isr = pyAMISR.analyze('20160302.001_lp_1min.h5')
-        isr.getBeamGridInds(0)
-        isr.overlayData('density', datetime(2012,11,24,6,55), 250.0,
-                        cLim=[10,12], zorder=4, beams=[36,1,10,4])
-
-    written by A. S. Reimer, 2013-08
-    """
-
-    assert(colPad == None or isinstance(colPad,str)),"colPad must be None or a string describing the colorbar padding"
-    if not colPad:
-      colPad='5%'
-
-    if not beams:
-      beams=range(0,self.numBeams)
-
-
-    #Get the times that data is available and then determine the index
-    #for plotting
-    times = self.data['times']
-    tInd = np.where(np.logical_and(np.array(time) >= times[:,0], np.array(time) <= times[:,1]))[0].tolist()
-
-    #Now only proceed if the time is found
-    if (len(tInd) > 0):
-      tInd=tInd[0]
-      #Get the slice to be plotted
-      stuff=self.calcHorizSlice(param, altitude)
-      data = stuff['data'][tInd,:]
-      cornerLat=stuff['cornerLat'][self.beamGridInds]
-      cornerLon=stuff['cornerLon'][self.beamGridInds]
-
-
-      if (param == 'density'):
-        #detect if input density is log10 yet or not. If not, make it log10 of density (easier to plot)
-        pArr = data if data.max() < 10**8 else np.log10(data)
-        cLabel = 'Density log10 /m^3)'
-      if (param == 'density_uncor'):
-        #detect if input density is log10 yet or not. If not, make it log10 of density (easier to plot)
-        pArr = data if data.max() < 10**8 else np.log10(data)
-        cLabel = 'Uncorrected Density log10 /m^3)'
-      elif (param == 'Te'):
-        pArr = data
-        cLabel = 'Te (K)'
-      elif (param == 'Ti'):
-        pArr = data
-        cLabel = 'Ti (K)'
-      elif (param == 'velocity'):
-        pArr = data
-        cLabel = 'Vlos (m/s)'
-      elif (param in ['refracind','refracindX','refracindO']):
-        pArr = data
-        cLabel = 'Refractive Index'
-      #determine the parameter limits
-      if not cLim:
-        if (param == 'density'): cl = [9.0,12.0]
-        elif (param == 'Te'): cl = [0.0,3000.0]
-        elif (param == 'Ti'): cl = [0.0,2000.0]
-        elif (param == 'velocity'): cl = [-500.0,500.0]
-        elif (param in ['refracind','refracindX','refracindO']):  cl=[0.5,1.0]
-      else:
-        cl = cLim
-
-      #determine the color mapping for the data
-      if not cmap:
-        cmap='jet'
-      cNorm = colors.Normalize(vmin=cl[0], vmax=cl[1])
-      scalarMap = cmx.ScalarMappable(norm=cNorm, cmap=cmap)
-
-      #Now we can plot the data on a map
-      #if a map object was not passed to this function, create one
-      if not myMap:
-        fig = pyplot.figure()
-        if colBar:
-          ax = fig.add_axes([0.05, 0.1, 0.8, 0.8])
-        else:
-          ax = fig.add_axes([0.1,0.1,0.8,0.8])
-        myMap = utils.mapObj(lat_0=self.siteLat,lon_0=self.siteLon,width=1.0e6,height=1.0e6, coords='geo', ax=ax)
-      else:
-        ax=myMap.ax
-        fig=ax.figure
-
-      #plot little rectangles or symbols for each data point and color them according to the scalar mapping we created
-      #Symbol stuff
-      if sym:
-        marker=sym[0]
-        if len(sym) > 1:
-          symSize=sym[1]
-        else:
-          s=20
-
-      #plotting stuff
-      bm=self.beamGridInds
-      (l,w)=bm.shape
-      for i in range(l):
-        for j in range(w):
-          if np.isfinite(pArr[bm[i,j]]) and bm[i,j] in beams:
-            try:
-              X,Y=myMap(cornerLon[i,j,:],cornerLat[i,j,:],coords='geo')
-            except:
-              X,Y=myMap(cornerLon[i,j,:],cornerLat[i,j,:])
-
-            if not sym and not grid:
-              fills = ax.fill(X,Y,color=scalarMap.to_rgba(pArr[bm[i,j]]), \
-                              zorder=zorder, alpha=alpha, edgecolor='none')
-            elif sym:
-              ax.scatter(np.average(X),np.average(Y),color=scalarMap.to_rgba(pArr[bm[i,j]]), \
-                         marker=marker, s=symSize, zorder=zorder, alpha=alpha, edgecolor=scalarMap.to_rgba(pArr[bm[i,j]]))
-            elif grid:
-              X=X.tolist()
-              Y=Y.tolist()
-              X.append(X[0])
-              Y.append(Y[0])
-              ax.plot(X,Y,'k', zorder=zorder, alpha=alpha)
-
-      #add a colorbar and label it properly
-      if colBar:
-        if type(colBar) == bool:
-          cax, _ = mpl.colorbar.make_axes(ax,location='right')
-        else:
-          cax = colBar
-        cbar = mpl.colorbar.ColorbarBase(cax,norm=cNorm,cmap=cmap)
-        cbar.set_label(cLabel)
-        cbar.set_ticks(np.linspace(cl[0],cl[1],num=5))
-
-      #only show the figure if requested (useful for producing many plots)
-      if show:
-        fig.show()
-
-
-####################################################################################
-####################################################################################
-####################################################################################
-
-
-  def overlayBeamGrid(self, altitude, myMap=None, fill=False, fillColor='blue', sym=None, symColor='black', zorder=3, alpha=1):
-    """ Overlay horizontal beam grid at a particular altitude slice onto a basemap.
-
-    **Args**:
-      * **altitude** (int/float): int/float corresponding to the altitude slice to plot data at
-      * **[myMap]** (utils.mapObj): a colormap to use for each parameter
-      * **[fill]** (bool): Specify whether or not to fill the grid with a colour
-      * **[fillColor]** (str): A string describing the colour that should be used to fill with
-      * **[sym]** (list): None or list of sym[0]: symbols to plot instead of rectangles and sym[1]: size of symbol
-      * **[symColor]** (str): A string describing the colour of the symbol to plot
-      * **[zorder]** (int/float): a matplotlib zorder
-      * **[alpha]** (int/float): the transparency (0 invisible, 1 fully visible)
-
-    **Example**:
-      ::
-        import pyAMISR
-        from datetime import datetime
-        isr = pyAMISR.analyze('20160302.001_lp_1min.h5')
-        isr.getBeamGridInds(0)
-        isr.overlayBeamGrid(250.0)
-
-    written by A. S. Reimer, 2016-07
-    """
-
-
-    beams=range(0,self.numBeams)
-
-    #Get the slice to be plotted
-    temp = self.calcHorizSlice('density', altitude)
-    cornerLat=temp['cornerLat'][self.beamGridInds]
-    cornerLon=temp['cornerLon'][self.beamGridInds]
-
-    #Now we can plot the data on a map
-    #if a map object was not passed to this function, create one
-    show = False
-    if not myMap:
-      fig = pyplot.figure()
-      ax = fig.add_axes([0.1,0.1,0.8,0.8])
-      myMap = utils.mapObj(lat_0=self.siteLat,lon_0=self.siteLon,
-                           width=1.0e6,height=1.0e6,coords='geo',ax=ax)
-      show = True
-    else:
-      ax=myMap.ax
-      fig=ax.figure
-
-    #plot little rectangles or symbols for each data point and color them according to the scalar mapping we created
-    #Symbol stuff
-    if sym:
-      marker=sym[0]
-      if len(sym) > 1:
-        symSize=sym[1]
-      else:
-        symSize=20
-
-    #plot the grid
-    bm=self.beamGridInds
-    (l,w)=bm.shape
-    for i in range(l):
-      for j in range(w):
-        try:
-          X,Y=myMap(cornerLon[i,j,:],cornerLat[i,j,:],coords='geo')
-        except:
-          X,Y=myMap(cornerLon[i,j,:],cornerLat[i,j,:])
-        if sym:
-          myMap.scatter(np.average(X),np.average(Y),color=symColor,
-                      marker=marker, s=symSize, zorder=zorder,
-                      alpha=alpha, edgecolor=symColor,latlon=False)
-        else:
-          if fill:
-            fills = ax.fill(X,Y,color=fillColor, \
-                            zorder=zorder, alpha=alpha, edgecolor='none')
-          X=X.tolist()
-          Y=Y.tolist()
-          X.append(X[0])
-          Y.append(Y[0])
-          myMap.plot(X,Y,'k',latlon=False, zorder=zorder, alpha=alpha)
-    if show:
-      fig.show()
-
-
 ####################################################################################
 ####################################################################################
 ####################################################################################
@@ -1408,7 +1178,7 @@ class analyze(object):
 
     assert(not rang or isinstance(rang, bool)),"rang must be None or bool"
 
-    np.seterr(all='ignore')	#turn off numpy warnings
+    np.seterr(all='ignore') #turn off numpy warnings
 
     #Set some defaults
     if not bmnum:
@@ -1427,11 +1197,11 @@ class analyze(object):
     tInd=tInd[0]
 
     #grab parameters to be used for RTI
-    t = self.data["times"]		#array of start and end times for each measurement in datetime.datetime
-    cT = self.data["aveTimes"]	#array of time in middle of measurement in datetime.datetime
+    t = self.data["times"]    #array of start and end times for each measurement in datetime.datetime
+    cT = self.data["aveTimes"]  #array of time in middle of measurement in datetime.datetime
 
     if rang:
-      r = self.data["range"]		#array of central range of each measurement
+      r = self.data["range"]    #array of central range of each measurement
       yLabel='Range (km)'
     else:
       r = self.data["altitude"]
@@ -1529,3 +1299,245 @@ class analyze(object):
 
     #turn warnings back on
     np.seterr(all='warn')
+
+
+
+####################################################################################
+####################################################################################
+####################################################################################
+
+# TEMPORARILY REMOVED UNTIL CARTOPY IS INTEGRATED FULLY. REQUIRES A MAJOR REWRITE
+  # def overlayData(self, param, time, altitude, cLim=None, cmap=None, myax=None,
+  #                 zorder=3, alpha=1, show=True, colBar=True, colPad=None, sym=None,
+  #                 grid=False, beams=None):
+  #   """ Overlay ISR data at a particular altitude slice onto a basemap.
+
+  #   **Args**:
+  #     * **param** (str): The parameter to plot: 'density','Te','Ti','velocity, refracind, refracindX, refracindO'
+  #     * **time** (datetime.datetime): the time to plot data for
+  #     * **altitude** (int/float): int/float corresponding to the altitude slice to plot data at
+  #     * **[cLim]** (list): list of lists containing the colorbar limits for each parameter plotted
+  #     * **[cmap]** (matplotlib.colors.Colormap): a colormap to use for each parameter
+  #     * **[myax]** (matplotlib.figure): a matplotlib figure object
+  #     * **[zorder]** (int/float): a matplotlib zorder
+  #     * **[alpha]** (int/float): the transparency (0 invisible, 1 fully visible)
+  #     * **[show]** (boolean): whether or not to show the plot
+  #     * **[colBar]** (boolean): plot a colorbar
+  #     * **[colPad]** (str): None or string corresponding to colorbar padding (default '5%').
+  #     * **[sym]** (list): None or list of sym[0]: symbols to plot instead of rectangles and sym[1]: size of symbol
+  #     * **[grid]** (boolean): None or True to specify whether or not to plot a grid
+  #     * **[beams]** (list): list of beams to plot
+
+  #   **Example**:
+  #     ::
+  #       import pyAMISR
+  #       from datetime import datetime
+  #       isr = pyAMISR.analyze('20160302.001_lp_1min.h5')
+  #       isr.getBeamGridInds(0)
+  #       isr.overlayData('density', datetime(2012,11,24,6,55), 250.0,
+  #                       cLim=[10,12], zorder=4, beams=[36,1,10,4])
+
+  #   written by A. S. Reimer, 2013-08
+  #   """
+
+  #   assert(colPad == None or isinstance(colPad,str)),"colPad must be None or a string describing the colorbar padding"
+  #   if not colPad:
+  #     colPad='5%'
+
+  #   if not beams:
+  #     beams=range(0,self.numBeams)
+
+
+  #   #Get the times that data is available and then determine the index
+  #   #for plotting
+  #   times = self.data['times']
+  #   tInd = np.where(np.logical_and(np.array(time) >= times[:,0], np.array(time) <= times[:,1]))[0].tolist()
+
+  #   #Now only proceed if the time is found
+  #   if (len(tInd) > 0):
+  #     tInd=tInd[0]
+  #     #Get the slice to be plotted
+  #     stuff=self.calcHorizSlice(param, altitude)
+  #     data = stuff['data'][tInd,:]
+  #     cornerLat=stuff['cornerLat'][self.beamGridInds]
+  #     cornerLon=stuff['cornerLon'][self.beamGridInds]
+
+
+  #     if (param == 'density'):
+  #       #detect if input density is log10 yet or not. If not, make it log10 of density (easier to plot)
+  #       pArr = data if data.max() < 10**8 else np.log10(data)
+  #       cLabel = 'Density log10 /m^3)'
+  #     if (param == 'density_uncor'):
+  #       #detect if input density is log10 yet or not. If not, make it log10 of density (easier to plot)
+  #       pArr = data if data.max() < 10**8 else np.log10(data)
+  #       cLabel = 'Uncorrected Density log10 /m^3)'
+  #     elif (param == 'Te'):
+  #       pArr = data
+  #       cLabel = 'Te (K)'
+  #     elif (param == 'Ti'):
+  #       pArr = data
+  #       cLabel = 'Ti (K)'
+  #     elif (param == 'velocity'):
+  #       pArr = data
+  #       cLabel = 'Vlos (m/s)'
+  #     elif (param in ['refracind','refracindX','refracindO']):
+  #       pArr = data
+  #       cLabel = 'Refractive Index'
+  #     #determine the parameter limits
+  #     if not cLim:
+  #       if (param == 'density'): cl = [9.0,12.0]
+  #       elif (param == 'Te'): cl = [0.0,3000.0]
+  #       elif (param == 'Ti'): cl = [0.0,2000.0]
+  #       elif (param == 'velocity'): cl = [-500.0,500.0]
+  #       elif (param in ['refracind','refracindX','refracindO']):  cl=[0.5,1.0]
+  #     else:
+  #       cl = cLim
+
+  #     #determine the color mapping for the data
+  #     if not cmap:
+  #       cmap='jet'
+  #     cNorm = colors.Normalize(vmin=cl[0], vmax=cl[1])
+  #     scalarMap = cmx.ScalarMappable(norm=cNorm, cmap=cmap)
+
+  #     #Now we can plot the data on a map
+  #     #if a map object was not passed to this function, create one
+  #     if not myax:
+  #       fig = pyplot.figure()
+  #       ax = fig.add_subplot(111,projection=default_projection)
+  #     else:
+  #       ax = myax
+
+  #     #plot little rectangles or symbols for each data point and color them according to the scalar mapping we created
+  #     #Symbol stuff
+  #     if sym:
+  #       marker=sym[0]
+  #       if len(sym) > 1:
+  #         symSize=sym[1]
+  #       else:
+  #         s=20
+
+  #     #plotting stuff
+  #     bm=self.beamGridInds
+  #     (l,w)=bm.shape
+  #     for i in range(l):
+  #       for j in range(w):
+  #         if np.isfinite(pArr[bm[i,j]]) and bm[i,j] in beams:
+  #           try:
+  #             X,Y=myMap(cornerLon[i,j,:],cornerLat[i,j,:],coords='geo')
+  #           except:
+  #             X,Y=myMap(cornerLon[i,j,:],cornerLat[i,j,:])
+
+  #           if not sym and not grid:
+  #             fills = ax.fill(X,Y,color=scalarMap.to_rgba(pArr[bm[i,j]]), \
+  #                             zorder=zorder, alpha=alpha, edgecolor='none')
+  #           elif sym:
+  #             ax.scatter(np.average(X),np.average(Y),color=scalarMap.to_rgba(pArr[bm[i,j]]), \
+  #                        marker=marker, s=symSize, zorder=zorder, alpha=alpha, edgecolor=scalarMap.to_rgba(pArr[bm[i,j]]))
+  #           elif grid:
+  #             X=X.tolist()
+  #             Y=Y.tolist()
+  #             X.append(X[0])
+  #             Y.append(Y[0])
+  #             ax.plot(X,Y,'k', zorder=zorder, alpha=alpha)
+
+  #     #add a colorbar and label it properly
+  #     if colBar:
+  #       if type(colBar) == bool:
+  #         cax, _ = mpl.colorbar.make_axes(ax,location='right')
+  #       else:
+  #         cax = colBar
+  #       cbar = mpl.colorbar.ColorbarBase(cax,norm=cNorm,cmap=cmap)
+  #       cbar.set_label(cLabel)
+  #       cbar.set_ticks(np.linspace(cl[0],cl[1],num=5))
+
+  #     #only show the figure if requested (useful for producing many plots)
+  #     if show:
+  #       fig.show()
+
+
+####################################################################################
+####################################################################################
+####################################################################################
+
+# TEMPORARILY REMOVED UNTIL CARTOPY IS INTEGRATED FULLY. REQUIRES A MAJOR REWRITE
+
+  # def overlayBeamGrid(self, altitude, myMap=None, fill=False, fillColor='blue', sym=None, symColor='black', zorder=3, alpha=1):
+  #   """ Overlay horizontal beam grid at a particular altitude slice onto a basemap.
+
+  #   **Args**:
+  #     * **altitude** (int/float): int/float corresponding to the altitude slice to plot data at
+  #     * **[myMap]** (utils.mapObj): a colormap to use for each parameter
+  #     * **[fill]** (bool): Specify whether or not to fill the grid with a colour
+  #     * **[fillColor]** (str): A string describing the colour that should be used to fill with
+  #     * **[sym]** (list): None or list of sym[0]: symbols to plot instead of rectangles and sym[1]: size of symbol
+  #     * **[symColor]** (str): A string describing the colour of the symbol to plot
+  #     * **[zorder]** (int/float): a matplotlib zorder
+  #     * **[alpha]** (int/float): the transparency (0 invisible, 1 fully visible)
+
+  #   **Example**:
+  #     ::
+  #       import pyAMISR
+  #       from datetime import datetime
+  #       isr = pyAMISR.analyze('20160302.001_lp_1min.h5')
+  #       isr.getBeamGridInds(0)
+  #       isr.overlayBeamGrid(250.0)
+
+  #   written by A. S. Reimer, 2016-07
+  #   """
+
+
+  #   beams=range(0,self.numBeams)
+
+  #   #Get the slice to be plotted
+  #   temp = self.calcHorizSlice('density', altitude)
+  #   cornerLat=temp['cornerLat'][self.beamGridInds]
+  #   cornerLon=temp['cornerLon'][self.beamGridInds]
+
+  #   #Now we can plot the data on a map
+  #   #if a map object was not passed to this function, create one
+  #   show = False
+  #   if not myMap:
+  #     fig = pyplot.figure()
+  #     ax = fig.add_axes([0.1,0.1,0.8,0.8])
+  #     myMap = utils.mapObj(lat_0=self.siteLat,lon_0=self.siteLon,
+  #                          width=1.0e6,height=1.0e6,coords='geo',ax=ax)
+  #     show = True
+  #   else:
+  #     ax=myMap.ax
+  #     fig=ax.figure
+
+  #   #plot little rectangles or symbols for each data point and color them according to the scalar mapping we created
+  #   #Symbol stuff
+  #   if sym:
+  #     marker=sym[0]
+  #     if len(sym) > 1:
+  #       symSize=sym[1]
+  #     else:
+  #       symSize=20
+
+  #   #plot the grid
+  #   bm=self.beamGridInds
+  #   (l,w)=bm.shape
+  #   for i in range(l):
+  #     for j in range(w):
+  #       try:
+  #         X,Y=myMap(cornerLon[i,j,:],cornerLat[i,j,:],coords='geo')
+  #       except:
+  #         X,Y=myMap(cornerLon[i,j,:],cornerLat[i,j,:])
+  #       if sym:
+  #         myMap.scatter(np.average(X),np.average(Y),color=symColor,
+  #                     marker=marker, s=symSize, zorder=zorder,
+  #                     alpha=alpha, edgecolor=symColor,latlon=False)
+  #       else:
+  #         if fill:
+  #           fills = ax.fill(X,Y,color=fillColor, \
+  #                           zorder=zorder, alpha=alpha, edgecolor='none')
+  #         X=X.tolist()
+  #         Y=Y.tolist()
+  #         X.append(X[0])
+  #         Y.append(Y[0])
+  #         myMap.plot(X,Y,'k',latlon=False, zorder=zorder, alpha=alpha)
+  #   if show:
+  #     fig.show()
+
+
