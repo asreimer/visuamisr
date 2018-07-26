@@ -9,14 +9,14 @@ First clone this repository::
 
     git clone https://github.com/asreimer/pyAMISR.git
 
-Next run the `setup.py` file::
+Next, `cd` into the repo and install using `pip` file::
 
-    python setup.py develop
+    pip install .
 
 
 Dependencies
 ------------
-Makes use of the python wrapper for aacgm and the `mapObj` object in `davitpy`.
+cartopy, matplotlib, numpy, h5py
 
 
 Usage
