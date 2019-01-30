@@ -22,3 +22,4 @@ except (ImportError,AttributeError):
 
 from .analyze import analyze, read_data
 
+__version__ = '2.0.0'
