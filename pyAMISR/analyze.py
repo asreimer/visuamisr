@@ -83,7 +83,17 @@ except ImportError:
 # Dictionary of site code number/radar name pairs
 site_codes = {91: 'RISR-N', 92: 'RISR-C', 61: 'PFISR'}
 
+
+
+# TODO: generalize this so that it can use h5py or tables. Don't force user to use one.
 def read_data(filepath):
+    # Provides a consistent API for working with data in fitted files
+    # by returning a dictionary of parameters in the fitted files.
+    # This makes plotting easier.
+    #
+    # This function was originally designed to handle the SRI file 
+    # format only but has a bit of support for Madrigal format hdf5
+    # files.
 
     data = dict()
     with h5py.File(str(filepath),'r') as f:
@@ -119,10 +129,10 @@ def read_data(filepath):
             data['beamcodes'] = np.arange(data['az'].size)
 
         try:
-            data['site_latitude'] = f['Site']['Latitude'].value
-            data['site_longitude'] = f['Site']['Longitude'].value
-            data['site_altitude'] = f['Site']['Altitude'].value
-            data['site_code'] = f['Site']['Code'].value
+            data['site_latitude'] = f['Site']['Latitude'][()]
+            data['site_longitude'] = f['Site']['Longitude'][()]
+            data['site_altitude'] = f['Site']['Altitude'][()]
+            data['site_code'] = f['Site']['Code'][()]
         except KeyError: #FIXME using integrated Madrigal files, it's under /MetaData/Experiment Parameters
             pass
 
@@ -136,10 +146,12 @@ def read_data(filepath):
 #Documentation for the "Fits" entry in the HDF5 file:
 #'Fitted parameters, Size: Nrecords x Nbeams x Nranges x Nions+1 x 4 (fraction, temperature, collision frequency, LOS speed), Unit: N/A, Kelvin, s^{-1}, m/s, FLAVOR: numpy'
 # So it lists ions first, electrons are the last to be listed
+
+# TODO: add support for perturbation noise parameter
         if 'FittedParams' in f.keys():
           data['density'] = np.array(f['FittedParams']['Ne'])
           data['edensity'] = np.array(f['FittedParams']['dNe'])
-          temp = np.array(f['FittedParams']['Fits'])
+          temp = np.array(f['FittedParams']['Fits'])    # TODO, optimize this, we don't need to read the whole array...
           data['Te'] = temp[:,:,:,1,1]
           data['Ti'] = temp[:,:,:,0,1]
           data['vel'] = temp[:,:,:,1,3]
