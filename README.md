@@ -13,6 +13,10 @@ Next run the `setup.py` file::
 
     python setup.py develop
 
+or with pip::
+
+    pip install .
+
 
 Dependencies
 ------------
@@ -21,6 +25,8 @@ Makes use of the python wrapper for aacgm and the `mapObj` object in `davitpy`.
 
 Usage
 =====
+
+First, you will need some data! I grabbed a fitted file from https://amisr.com/database, specifically, some PFISR Themis36 data from 2 March, 2016: https://amisr.com/database/61/experiment/20160302.001/3/2. The 20160302.001_lp_1min.h5 file is 192 MB in size.
 
 Beam Plot in Polar Coordinates
 ------------------------------
