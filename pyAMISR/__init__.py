@@ -20,5 +20,5 @@ try:
 except (ImportError,AttributeError):
     from pathlib2 import Path
 
-from .analyze import *
+from .analyze import analyze, read_data
 
