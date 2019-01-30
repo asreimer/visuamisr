@@ -2,7 +2,7 @@
 # Copyright (C) 2013  Ashton S. Reimer
 # Full license can be found in LICENSE.txt
 """
-pyAMISR
+pyamisr
 ------
 
 Module for plotting AMISR data
@@ -17,7 +17,7 @@ analyze       Plotting utilities
 try:
     from pathlib import Path
     Path().expanduser()
-except (ImportError,AttributeError):
+except (ImportError, AttributeError):
     from pathlib2 import Path
 
 from .analyze import analyze, read_data
