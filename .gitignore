@@ -8,3 +8,8 @@ __pycache__/
 build
 dist
 .eggs
+*.pyc
+*.pyo
+*.pyd
+*.swp
+*.bak
