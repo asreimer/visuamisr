@@ -239,7 +239,7 @@ class analyze(object):
         """ Plot the beam positions on a polar plot of azimuth and zenith angle
     
         **Args**:
-          * **[max_zenith]** (int or float): the minimum zenith angle to include in the plot
+          * **[min_elevation]** (int or float): the minimum elevation angle to include in the plot
     
         **Example**:
           ::
