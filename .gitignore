@@ -5,3 +5,6 @@ __pycache__/
 *.o
 *~
 *.pyc
+build
+dist
+.eggs
