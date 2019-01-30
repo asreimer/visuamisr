@@ -387,32 +387,27 @@ class analyze(object):
         t = t[tinds,:]
         ave_times = ave_times[tinds]
     
-        #Set up x and y "coordinates" for use with pyplot.fill
-        lt = len(t)
-        lr = len(r.T)
-        x = np.ndarray((lr,lt,4),dtype=datetime)
-        y = np.zeros((lr,lt,4))
-    
-        #grid the coordinates appropriately
-        for i in range(lr):
-            for j in range(lt):
-                if i==0:
-                    rstep = r[bmnum,i+1] - r[bmnum,i]
-                    y[i,j,0] = r[bmnum,0]
-                    y[i,j,1] = r[bmnum,0] + rstep
-                    y[i,j,2] = y[i,j,1]
-                    y[i,j,3] = y[i,j,0]
-                else:
-                    rstep = r[bmnum,i] - r[bmnum,i-1]
-                    y[i,j,0] = r[bmnum,i-1]
-                    y[i,j,1] = r[bmnum,i-1] + rstep
-                    y[i,j,2] = y[i,j,1]
-                    y[i,j,3] = y[i,j,0]
-         
-                x[i,j,0] = t[j,0]
-                x[i,j,1] = x[i,j,0]
-                x[i,j,2] = t[j,1]
-                x[i,j,3] = x[i,j,2]
+        # #Set up x and y "coordinates" for use with pyplot.fill
+        num_x           = t.shape[0]
+        num_y           = r.shape[1]
+        temp_y          = r[bmnum,:]
+        temp_y          = np.repeat(temp_y[np.newaxis,:],num_x,axis=0)
+        temp_y_diff     = np.repeat(np.diff(temp_y[0,:])[np.newaxis,:],num_x,axis=0)
+        y_diff          = np.zeros(temp_y.shape)
+        y_diff[:,0:-1]  = temp_y_diff
+        y_diff[:,-1]    = temp_y_diff[:,-1]
+
+        # Construct the range array for plotting
+        y_plot              = np.zeros((num_x+1,num_y+1))
+        y_plot[0:-1,0:-1]   = temp_y - y_diff/2
+        y_plot[0:-1,-1]     = temp_y[:,-1] + y_diff[:,-1]/2
+        y_plot[-1,:]        = y_plot[-2,:]
+
+        # Construct the time array for plotting
+        x_plot = np.ndarray((num_x+1,num_y+1),dtype=t.dtype)
+        x_plot[:num_x,:] = np.repeat(t[:,0][:,np.newaxis],num_y+1,axis=1)
+        x_plot[num_x,:] = t[num_x-1,1]
+
       
         #set up a figure for plotting to
         fig = pyplot.figure(figsize=(11,8.5))
@@ -420,7 +415,7 @@ class analyze(object):
         #add a title
         az = self.data['az'][bmnum]
         el = self.data['el'][bmnum]
-        self.add_title(fig,self.stime,self.data['site_name'],bmnum=bmnum,az=az,el=el,xmax=.85)
+        self.add_title(fig,self.stime,self.data['site_name'],beam=bmnum,az=az,el=el,xmax=.85)
     
         #iterate through the list of parameters and plot each one
         figtop = .85
@@ -463,10 +458,7 @@ class analyze(object):
                 elif (params[p] == 'velocity'): cl = [-500.0,500.0]
             else:
                 cl = clim[p]
-            #generate a scalar colormapping to map data to cmap
-            cnorm = colors.Normalize(vmin=cl[0],vmax=cl[1])
-            scalar_map = cmx.ScalarMappable(norm=cnorm,cmap=cmap)
-      
+
             #only add xtick labels if plotting the last parameter
             if not (p == len(params) - 1):
                 ax.xaxis.set_ticklabels([])
@@ -482,12 +474,10 @@ class analyze(object):
             ax.set_ylabel(ylabel)
       
             #plot little rectangles for each data point and color them according to the scalar mapping we created
-            #TODO: use pcolormesh instead
-            for i in range(lr):
-                for j in range(lt):
-                    if np.isfinite(parr[tinds[j],bmnum,i]):
-                        fills = ax.fill(x[i,j,:],y[i,j,:]/1000.0,color=scalar_map.to_rgba(parr[tinds[j],bmnum,i]))
+            fills = ax.pcolormesh(x_plot,y_plot/1000.0,parr[tinds,bmnum,:],vmin=cl[0],vmax=cl[1],cmap=cmap)
+
             #add a colorbar and label it properly
+            cnorm = colors.Normalize(vmin=cl[0],vmax=cl[1])
             cbar = mpl.colorbar.ColorbarBase(cax,norm=cnorm,cmap=cmap)
             cbar.set_label(clabel)
             cbar.set_ticks(np.linspace(cl[0],cl[1],num=5))
