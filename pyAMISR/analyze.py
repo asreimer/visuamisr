@@ -74,10 +74,10 @@ import matplotlib as mpl
 import matplotlib.cm as cmx
 from mpl_toolkits.mplot3d import Axes3D
 #
-try:
-    import cartopy
-except ImportError:
-    cartopy = None
+# try:
+#     import cartopy
+# except ImportError:
+#     cartopy = None
 
 
 # Dictionary of site code number/radar name pairs
@@ -276,7 +276,12 @@ class analyze(object):
         ax = fig.add_axes([0.1,0.1,0.8,0.75],projection='polar')
         ax.set_theta_direction(-1)
         ax.set_theta_zero_location('N')
-        t = ax.set_rgrids(radii,labels=labels,angle=180)[1]
+
+        if self.data['site_name'] == site_code[92]:
+            angle = -180
+        else:
+            angle = 180
+        t = ax.set_rgrids(radii,labels=labels,angle=angle)[1]
         #set the r ticks font size to small
         for i in t:
             i.set_size('small')
@@ -549,605 +554,6 @@ class analyze(object):
 ####################################################################################
 
 
-    def plot_beams3D(self, param, time, xlim=None, ylim=None, zmax=None, clim=None, cmap=None, sym_size=5):
-        """ Make a plot showing ISR data along each beam in 3D.
-    
-        **Args**:
-          * **param** (str): The parameter to plot: 'density','Te','Ti','velocity'
-          * **time** (datetime.datetime): the time to plot data for
-          * **[xlim]** (list): list of int/float corresponding to latitude limits to plot data from
-          * **[ylim]** (list): list of int/float corresponding to longitude limits to plot data from
-          * **[zmax]** (int/float): maximum altiude to plot data for
-          * **[clim]** (list): list of lists containing the colorbar limits for each parameter plotted
-          * **[cmap]** (matplotlib.colors.Colormap): a colormap to use for each parameter
-          * **[sym_size]** (int/float): see matplotlib.pyplot.scatter documentation (s parameter)
-    
-        **Example**:
-          ::
-            import pyAMISR
-            from datetime import datetime
-            isr = pyAMISR.analyze('20160302.001_lp_1min.h5')
-            isr.plot_beams3D('density',datetime(2012,11,24,6,40),sym_size=5, clim=[10,12])
-    
-    
-        written by A. S. Reimer, 2013-08
-        """
-    
-        #Check inputs
-        assert(isinstance(param,str)),"params must be one of density, Te, Ti, velocity, refracind, refracindX, or refracindO."
-        assert(isinstance(time,datetime)),"time must be datetime.datetime"
-        assert(not xlim or (isinstance(xlim,list) and len(xlim) == 2)), \
-            "xlim must be None or a list of a start and an end Latitude"
-        if xlim:
-            for l in xlim: assert(isinstance(l,(int,float))),"xlim list entries must be int or float"
-            assert(xlim[0] < xlim[1]),"Starting latitude must be smaller than ending latitude."
-        assert(not ylim or (isinstance(ylim,list) and len(ylim) == 2)), \
-            "ylim must be None or a list of a start and an end Longitude"
-        if ylim:
-            for l in ylim: assert(isinstance(l,(int,float))),"ylim list entries must be int or float"
-            assert(ylim[0] < ylim[1]),"Starting longitude must be smaller than ending longitude."
-    
-        assert(not zmax or isinstance(zmax,(int,float))), \
-            "zmax must be None or the maximum altitude to plot."
-    
-        assert(not clim or (isinstance(clim,list) and len(clim) == 2)), \
-            "clim must be None or a list of a start and an end value in int/float"
-        if clim:
-            for l in clim: assert(isinstance(l,(int,float))),"clim list entries must be int or float"
-            assert(clim[0] < clim[1]),"Starting values must be smaller than ending values."
-    
-        assert(not cmap or isinstance(cmap,(mpl.colors.Colormap, str))), \
-            "cmap must be None, a matplotlib.colors.Colormap, or a string describing a matplotlib.colors.Colormap."
-    
-        np.seterr(all='ignore')	#turn off numpy warnings
-    
-        #Use the default colormap if necessary
-        if not cmap:
-            cmap = 'viridis'
-    
-        #Get the times that data is available and then determine the index
-        #for plotting
-        times = self.data['times']
-        tinds = np.where(np.logical_and(np.array(time) >= times[:,0], np.array(time) <= times[:,1]))[0].tolist()
-    
-        #Now only proceed if the time is found
-        if len(tinds) == 0:
-            print("Time not found!")
-            return
-    
-        tinds = tinds[0]
-    
-        #Get parameter to plot
-        lats = self.data['latitude']
-        lons = self.data['longitude']
-        alts = self.data['altitude'] / 1000.0
-        if (param == 'density'):
-            #detect if input density is log10 yet or not. If not, make it log10 of density (easier to plot)
-            parr = self.data['density'] if self.data['density'].max() < 10**8 else np.log10(self.data['density'])
-            clabel = 'Density log10 /m^3)'
-        elif (param == 'Te'):
-            parr = self.data['Te']
-            clabel = 'Te (K)'
-        elif (param == 'Ti'):
-            parr = self.data['Ti']
-            clabel = 'Ti (K)'
-        elif (param == 'velocity'):
-            parr = self.data['vel']
-            clabel = 'Vlos (m/s)'
-        elif (param =='refracind'):
-            parr = self.data['refracind']
-            clabel = 'Refractive Index'
-        elif (param =='refracindX'):
-            parr = self.data['refracindX']
-            clabel = 'Refractive Index'
-        elif (param =='refracindO'):
-            parr = self.data['refracindO']
-            clabel = 'Refractive Index'
-    
-        #First create a figure with a 3D projection axis
-        fig = pyplot.figure()
-        ax = fig.add_axes([0.00, 0.05, 0.74, 0.9],projection='3d')
-        ax.patch.set_fill(0)
-        cax = fig.add_axes([0.80, 0.2,.03, 0.6])
-    
-        #set the axis tick markers to face outward
-        ax.yaxis.set_tick_params(direction='out')
-        ax.xaxis.set_tick_params(direction='out')
-        ax.yaxis.set_tick_params(direction='out',which='minor')
-        ax.xaxis.set_tick_params(direction='out',which='minor')
-    
-        #generate a scalar colormapping to map data to cmap
-        if not clim:
-            cl = [9,12]
-        else:
-            cl = clim
-        cnorm = colors.Normalize(vmin=cl[0], vmax=cl[1])
-        scalar_map = cmx.ScalarMappable(norm=cnorm, cmap=cmap)
-    
-        #plot the location of the radar
-        ax.scatter(self.site_lon, self.site_lat, self.site_alt, s=sym_size, c='black')
-    
-        #Add a title
-        self.add_title(fig, times[tinds,0], self.data['site_name'], time=times[tinds,:].tolist())
-    
-        #Now plot the data along each beam
-        (numT,numB,numR) = parr.shape
-        for b in range(numB):
-            for r in range(numR):
-                if np.isfinite(parr[tinds,b,r]):
-                      ax.scatter(lons[b,r], lats[b,r], alts[b,r], s=sym_size,
-                                 c=scalar_map.to_rgba(parr[tinds,b,r]),
-                                 edgecolors=scalar_map.to_rgba(parr[tinds,b,r]))
-    
-        #set X, Y, and Z limits if necessary
-        if not xlim:
-             xlim = ax.get_xlim()
-        if not ylim:
-            ylim = ax.get_ylim()
-        if not zmax:
-            zmax = 800.0
-    
-        #Change number of ticks and their spacing
-        ax.set_xticks(np.linspace(xlim[0],xlim[1],num=5))
-        for t in ax.get_xticklabels():
-            t.set_horizontalalignment('right')
-        ax.set_yticks(np.linspace(ylim[0],ylim[1],num=5))
-        for t in ax.get_yticklabels():
-            t.set_horizontalalignment('left')
-        ax.view_init(elev=20, azim=-60)
-        ax.set_zlim([0,zmax])
-    
-        #Label the axes
-        ax.set_xlabel('\nLongitude')
-        ax.set_ylabel('\nLatitude')
-        ax.set_zlabel('Altitude')
-    
-        #add a colorbar and label it properly
-        cbar = mpl.colorbar.ColorbarBase(cax,norm=cnorm,cmap=cmap)
-        cbar.set_label(clabel)
-        cbar.set_ticks(np.linspace(cl[0],cl[1],num=5))
-    
-        #show the figure
-        fig.show()
-    
-        #turn warnings back on
-        np.seterr(all='warn')
-
-
-####################################################################################
-####################################################################################
-####################################################################################
-
-
-    def isr_bayes_velocity(self,vlos_in,kvecs,beam_ranges):
-        """ Following Heinselman and Nicolls (2008), calculate a velocity vector and covariance for input line of sight velocities
-    
-        **Args**:
-          * **vlos_in** (np.array): N column array of line of sight velocities
-          * **kvecs** (np.array): Nx3 array of k-vectors of each line of sight velocity
-          * **beam_ranges** (np.array): N column array of range to each vlos_in
-    
-        **Example**:
-          ::
-    
-            from pyAMISR import *
-            pyAMISR.isr_bayes_velocity(vlos_in,kvecs,beam_ranges)
-    
-    
-        .. note:: For more details on the method, see Heinselman and Nicolls, (2008) RADIO SCIENCE, VOL 43, doi:10.1029/2007RS003805
-    
-        written by A. S. Reimer, 2013-07
-        """
-    
-        #First convert ensure that vlos_in is a column vector
-        nEl     = max(t.shape)
-        vlos_in = vlos_in.reshape(nEl,1)
-    
-        #Detect and remove any NaNs!
-        beams_used  = np.isfinite(vlos_in);
-        vlos_in     = vlos_in[np.where(beams_used)]
-        kvecs       = kvecs[:,np.where(beams_used)]
-        beam_ranges = beam_ranges[np.where(beams_used)]
-    
-        #Build the a priori covariance matricies
-        vlosErrorSlope = 1/10.0  #1m/s covariance per 10km altitude (but quadratic relation) (per page 8 Heinselman/Nicolls 2008)
-        sigmaE = np.diag((vlosErrorSlope*beam_ranges)**2)  #covariance for vlos_in error (could this be calculated from vlos error in ISR data?)
-    
-        velError = [3000,3000,15]           #covariance for bayes_vel as per the paper
-        sigmaV   = np.diag(velError)        #a priori covariance matrix for bayes_vel
-    
-        #Calculate the Bayesian velocity (equations 12 and 13)
-        A = kvecs
-    
-        bayes_vel = np.dot(sigmaV, A.T, np.linalg.solve(np.dot(A, sigmaV, A.T) + sigmaE, vlos_in))
-        bayes_cov = np.linalg.inv(np.dot(A.T, np.linalg.solve(sigmaE, A)) + np.linalg.inv(sigmaV))
-    
-        self.beams_used = beams_used          #an array of the beams the velocities used
-        self.bayes_vel = bayes_vel            #the Bayesian derived velocity vector
-        self.bayes_cov = bayes_cov            #the Bayesian derived covariance matrix for bayes_vel
-
-
-####################################################################################
-####################################################################################
-####################################################################################
-
-
-    def get_beam_grid_inds(self,code):
-        """ A function to calculate an array of indicies that can be use to plot ISR data in a grid.
-    
-        **Args**:
-          * **code** (int/float): the code for each beam pattern
-    
-        **Example**:
-          ::
-            import pyAMISR
-            isr=pyAMISR.analyze('20160302.001_lp_1min.h5')
-            isr.get_beam_grid_inds(0)
-            print isr.beam_grid_inds
-    
-        written by A. S. Reimer, 2013-08
-        """
-    
-        import numpy as np
-        if code == 0:
-            #TODO, add more beam patterns
-            #Beam Pattern for 40 beam pattern
-            grid = np.array([[ 7,22,20,23,14],
-                             [24,25,26,27,13],
-                             [ 6,28,29,30,31],
-                             [ 5,32,19,33,12],
-                             [ 4,34,18,35,11],
-                             [ 3,36,17,37,10],
-                             [ 2,38,16,39, 9],
-                             [ 1,40,15,41, 8]]) - 1
-        if code == 1:
-            #Beam Pattern for 42 beam grid within the 51 beam mode
-            grid = np.array([[45,44,48,47,46,43,42],
-                             [38,37,41,40,39,36,35],
-                             [31,30,34,33,32,29,28],
-                             [24,23,27,26,25,22,21],
-                             [17,16,20,19,18,15,14],
-                             [10, 9,13,12,11, 8, 7]]) - 1
-    
-        self.beam_grid_inds = grid
-
-
-####################################################################################
-####################################################################################
-####################################################################################
-
-
-    def calc_horiz_slice(self, param, altitude):
-        """ A function to calculate and return ISR data, latitude, and longitude at a given altitude. This routine will automatically interpolate the data and coords into a local horizontal plane at the requested altitude.
-    
-        **Args**:
-          * **param** (str): The parameter to interpolate: 'density', 'Te', 'Ti', 'velocity', 'refracind', 'refracindO', 'refracindX'.
-          * **altitude** (int/float): the altitude to calculate the data at in kilometers.
-          * **[coords]** (str): either 'geo' or 'mag'
-    
-        **Output**:
-          A dictionary with keys:
-            'data' - the data at requested altitude.
-            'lats' - the geographic latitude of the beam.
-            'lons' - the geographic longitude of the beam.
-            'corner_lat' - the corner latitudes of the beam pattern.
-            'corner_lon' - the corner longitude of the beam pattern.
-    
-        **Example**:
-          ::
-            import pyAMISR
-            isr = pyAMISR.analyze('20160302.001_lp_1min.h5')
-            interps = isr.calc_horiz_slice('density',250.0)
-    
-        written by A. S. Reimer, 2013-08
-        """
-    
-        import numpy as np
-    
-        #Get the ISR data to use
-        lats = self.data['latitude']
-        lons = self.data['longitude']
-        lat_lon_alts = self.data['altitude'] / 1000.0
-    
-        if (param == 'density'):
-            parr = self.data['density']
-        elif (param == 'density_uncor'):
-            parr = self.data['density_uncor']
-            alts = self.data['altitude_uncor'] / 1000.0
-        elif (param == 'Te'):
-            parr = self.data['Te']
-        elif (param == 'Ti'):
-            parr = self.data['Ti']
-        elif (param == 'velocity'):
-            parr = self.data['vel']
-        elif (param == 'refracind'):
-            parr = self.data['refracind']
-        elif (param == 'refracindO'):
-            parr = self.data['refracindO']
-        elif (param == 'refracindX'):
-            parr = self.data['refracindX']
-    
-        #Set up some output arrays
-        (numT,numB,numR) = parr.shape
-        pout = np.zeros((numT,numB))
-        latout = np.zeros((numB))
-        lonout = np.zeros((numB))
-    
-        #Loop through each beam
-        for b in range(numB):
-            # Do data first
-            #first check to see if requested altitude is equal to exisiting altitude
-            rInd_eq = np.where(np.array(altitude) == alts[b,:])[0].tolist()
-            if len(rInd_eq) == 0:
-                #now get the indicies for the altitude above and below the requested altitude
-                rInd_p = np.where(alts[b,:]-np.array(altitude) > 0)[0].tolist()
-                rInd_m = np.where(np.array(altitude)-alts[b,:] > 0)[0].tolist()
-                if (len(rInd_p) > 0 and len(rInd_m) > 0):
-                    #if they are found then calculate the weighted average of
-                    rInd_p = rInd_p[0]
-                    rInd_m = rInd_m[-1]
-          
-                    alt_p = alts[b,rInd_p]
-                    alt_m = alts[b,rInd_m]
-                    dp = alt_p - altitude
-                    dm = altitude - alt_m
-                    dt = dp + dm
-          
-                    #data
-                    pout[:,b] = parr[:,b,rInd_p]*dm/dt + parr[:,b,rInd_m]*dp/dt
-                else:
-                    #if no data found, set things to NaN
-                    pout[:,b] = np.zeros(numT)*np.nan
-            else:
-                rInd_eq = rInd_eq[0]
-                pout[:,b] = parr[:,b,rInd_eq]
-    
-            # Now to lats and lons
-            #first check to see if requested altitude is equal to exisiting altitude
-            rInd_eq = np.where(np.array(altitude) == lat_lon_alts[b,:])[0].tolist()
-            if len(rInd_eq) == 0:
-                #now get the indicies for the altitude above and below the requested altitude
-                rInd_p = np.where(lat_lon_alts[b,:] - np.array(altitude) > 0)[0].tolist()
-                rInd_m = np.where(np.array(altitude) - lat_lon_alts[b,:] > 0)[0].tolist()
-        
-                if (len(rInd_p) > 0 and len(rInd_m) > 0):
-                    #if they are found then calculate the weighted average of
-                    rInd_p = rInd_p[0]
-                    rInd_m = rInd_m[-1]
-          
-                    alt_p = lat_lon_alts[b,rInd_p]
-                    alt_m = lat_lon_alts[b,rInd_m]
-                    dp = alt_p - altitude
-                    dm = altitude - alt_m
-                    dt = dp + dm
-          
-                    #lats and lons
-                    latout[b] = lats[b,rInd_p]*dm/dt + lats[b,rInd_m]*dp/dt
-                    lonout[b] = lons[b,rInd_p]*dm/dt + lons[b,rInd_m]*dp/dt
-                else:
-                    #if no data found, set things to NaN
-                    latout[b] = np.nan
-                    lonout[b] = np.nan
-            else:
-                rInd_eq = rInd_eq[0]
-                latout[b] = lats[b,rInd_eq]
-                lonout[b] = lons[b,rInd_eq]
-    
-        #Now calculate the corner latitudes and longitude for each beam
-        cell_coords = self.get_grid_cell_corners(latout,lonout)
-        #Now build a dictionary for output
-        outs={}
-        outs['data'] = pout
-        outs['lats'] = latout
-        outs['lons'] = lonout
-        outs['corner_lat'] = cell_coords['corner_lat']
-        outs['corner_lon'] = cell_coords['corner_lon']
-    
-        return outs
-
-
-####################################################################################
-####################################################################################
-####################################################################################
-
-
-    def get_grid_cell_corners(self,lats,lons):
-        """ A function to calculate and return the corners of a grid of input latitudes and longitudes. This should usually only be used by the self.calc_horiz_slice method.
-    
-        **Args**:
-          * **lats** : the interpolated latitudes from self.calc_horiz_slice method.
-          * **lons** : the interpolated longitudes from self.calc_horiz_slice method.
-    
-        **Output**:
-          A dictionary with keys:
-            'corner_lat' - the corner latitudes of the beam pattern.
-            'corner_lon' - the corner longitude of the beam pattern.
-    
-        written by A. S. Reimer, 2013-08
-        """
-        import numpy as np
-    
-        (t,o) = self.beam_grid_inds.shape
-        corner_lat = np.zeros((t,o,4))
-        corner_lon = np.zeros((t,o,4))
-        t,o = t-1,o-1
-    
-        lat = lats[self.beam_grid_inds] #define for readability
-        lon = lons[self.beam_grid_inds]
-    
-        #Now generate the points for the grid
-        #INSIDE
-        for i in range(1,t):
-            for j in range(1,o):
-                  corner_lat[i,j,0] = (lat[i-1,j-1]+lat[i,j-1]+lat[i,j]+lat[i-1,j])/4
-                  corner_lat[i,j,1] = (lat[i,j-1]+lat[i+1,j-1]+lat[i+1,j]+lat[i,j])/4
-                  corner_lat[i,j,2] = (lat[i,j]+lat[i+1,j]+lat[i+1,j+1]+lat[i,j+1])/4
-                  corner_lat[i,j,3] = (lat[i-1,j]+lat[i,j]+lat[i,j+1]+lat[i-1,j+1])/4
-                  corner_lon[i,j,0] = (lon[i-1,j-1]+lon[i,j-1]+lon[i,j]+lon[i-1,j])/4
-                  corner_lon[i,j,1] = (lon[i,j-1]+lon[i+1,j-1]+lon[i+1,j]+lon[i,j])/4
-                  corner_lon[i,j,2] = (lon[i,j]+lon[i+1,j]+lon[i+1,j+1]+lon[i,j+1])/4
-                  corner_lon[i,j,3] = (lon[i-1,j]+lon[i,j]+lon[i,j+1]+lon[i-1,j+1])/4
-    
-        #EDGES
-        for i in range(1,t):
-            corner_lat[i,0,0] = 2*corner_lat[i,1,0]-corner_lat[i,1,3]
-            corner_lat[i,0,1] = 2*corner_lat[i,1,1]-corner_lat[i,1,2]
-            corner_lat[i,0,2] = corner_lat[i,1,1]
-            corner_lat[i,0,3] = corner_lat[i,1,0]
-      
-            corner_lon[i,0,0] = 2*corner_lon[i,1,0]-corner_lon[i,1,3]
-            corner_lon[i,0,1] = 2*corner_lon[i,1,1]-corner_lon[i,1,2]
-            corner_lon[i,0,2] = corner_lon[i,1,1]
-            corner_lon[i,0,3] = corner_lon[i,1,0]
-      
-            corner_lat[i,o,3] = 2*corner_lat[i,o-1,3]-corner_lat[i,o-1,0]
-            corner_lat[i,o,2] = 2*corner_lat[i,o-1,2]-corner_lat[i,o-1,1]
-            corner_lat[i,o,1] = corner_lat[i,o-1,2]
-            corner_lat[i,o,0] = corner_lat[i,o-1,3]
-            corner_lon[i,o,0] = corner_lon[i,o-1,3]
-            corner_lon[i,o,1] = corner_lon[i,o-1,2]
-            corner_lon[i,o,2] = 2*corner_lon[i,o-1,2]-corner_lon[i,o-1,1]
-            corner_lon[i,o,3] = 2*corner_lon[i,o-1,3]-corner_lon[i,o-1,0]
-      
-    
-        for i in range(1,o):
-            corner_lat[0,i,0] = 2*corner_lat[1,i,0]-corner_lat[1,i,1]
-            corner_lat[0,i,1] = corner_lat[1,i,0]
-            corner_lat[0,i,2] = corner_lat[1,i,3]
-            corner_lat[0,i,3] = 2*corner_lat[1,i,3]-corner_lat[1,i,2]
-            corner_lon[0,i,0] = 2*corner_lon[1,i,0]-corner_lon[1,i,1]
-            corner_lon[0,i,1] = corner_lon[1,i,0]
-            corner_lon[0,i,2] = corner_lon[1,i,3]
-            corner_lon[0,i,3] = 2*corner_lon[1,i,3]-corner_lon[1,i,2]
-            corner_lat[t,i,0] = corner_lat[t-1,i,1]
-            corner_lat[t,i,1] = 2*corner_lat[t-1,i,1]-corner_lat[t-1,i,0]
-            corner_lat[t,i,2] = 2*corner_lat[t-1,i,2]-corner_lat[t-1,i,3]
-            corner_lat[t,i,3] = corner_lat[t-1,i,2]
-            corner_lon[t,i,0] = corner_lon[t-1,i,1]
-            corner_lon[t,i,1] = 2*corner_lon[t-1,i,1]-corner_lon[t-1,i,0]
-            corner_lon[t,i,2] = 2*corner_lon[t-1,i,2]-corner_lon[t-1,i,3]
-            corner_lon[t,i,3] = corner_lon[t-1,i,2]
-        #FIRST CORNER
-        corner_lat[0,0,0] = 2*corner_lat[1,0,0]-corner_lat[1,0,1]
-        corner_lat[0,0,1] = corner_lat[1,0,0]
-        corner_lat[0,0,2] = corner_lat[1,1,0]
-        corner_lat[0,0,3] = corner_lat[0,1,0]
-        corner_lon[0,0,0] = 2*corner_lon[1,0,0]-corner_lon[1,0,1]
-        corner_lon[0,0,1] = corner_lon[1,0,0]
-        corner_lon[0,0,2] = corner_lon[1,1,0]
-        corner_lon[0,0,3] = corner_lon[0,1,0]
-        #SECOND CORNER
-        corner_lat[t,0,0] = corner_lat[t-1,0,1]
-        corner_lat[t,0,1] = 2*corner_lat[t-1,0,1]-corner_lat[t-1,0,0]
-        corner_lat[t,0,2] = corner_lat[t,1,1]
-        corner_lat[t,0,3] = corner_lat[t-1,1,1]
-        corner_lon[t,0,0] = corner_lon[t-1,0,1]
-        corner_lon[t,0,1] = 2*corner_lon[t-1,0,1]-corner_lon[t-1,0,0]
-        corner_lon[t,0,2] = corner_lon[t,1,1]
-        corner_lon[t,0,3] = corner_lon[t-1,1,1]
-        #THIRD CORNER
-        corner_lat[t,o,0] = corner_lat[t-1,o-1,2]
-        corner_lat[t,o,1] = corner_lat[t,o-1,2]
-        corner_lat[t,o,2] = 2*corner_lat[t-1,o,2]-corner_lat[t-1,o,3]
-        corner_lat[t,o,3] = corner_lat[t-1,o,2]
-        corner_lon[t,o,0] = corner_lon[t-1,o-1,2]
-        corner_lon[t,o,1] = corner_lon[t,o-1,2]
-        corner_lon[t,o,2] = 2*corner_lon[t-1,o,2]-corner_lon[t-1,o,3]
-        corner_lon[t,o,3] = corner_lon[t-1,o,2]
-        #FOURTH CORNER
-        corner_lat[0,o,0] = corner_lat[0,o-1,3]
-        corner_lat[0,o,1] = corner_lat[1,o-1,3]
-        corner_lat[0,o,2] = corner_lat[1,o,3]
-        corner_lat[0,o,3] = 2*corner_lat[1,o,3]-corner_lat[1,o,2]
-        corner_lon[0,o,0] = corner_lon[0,o-1,3]
-        corner_lon[0,o,1] = corner_lon[1,o-1,3]
-        corner_lon[0,o,2] = corner_lon[1,o,3]
-        corner_lon[0,o,3] = 2*corner_lon[1,o,3]-corner_lon[1,o,2]
-    
-        outLat = np.zeros((self.num_beams,4))
-        outLon = np.zeros((self.num_beams,4))
-        for i in range(0,self.num_beams):
-            (x,y) = np.where(self.beam_grid_inds == i)
-            if len(x):
-                outLat[i,:] = corner_lat[x,y,:]
-                outLon[i,:] = corner_lon[x,y,:]
-            else:
-                outLat[i,:] = np.nan
-                outLon[i,:] = np.nan
-        cell_coords = {}
-        cell_coords['corner_lat'] = outLat
-        cell_coords['corner_lon'] = outLon
-    
-        return cell_coords
-
-
-####################################################################################
-####################################################################################
-####################################################################################
-
-
-    def calc_refractive_index(self,_freq_hf):
-        """ A function to calculate the refractive index at HF frequencies from ISR density measurements
-    
-        **Args**:
-          * **_freq_hf** (int/float): The HF frequency transmitted by an HF radar in MHz.
-    
-        **Example**:
-          ::
-            import pyAMISR
-            isr = pyAMISR.analyze('20160302.001_lp_1min.h5')
-            isr.calc_refractive_index(10.5)
-    
-        written by A. S. Reimer, 2013-08
-        """
-    
-        import numpy as np
-    
-        #calculate the angular frequency of the input HF frequency
-        ang_freq_hf = 2.0*np.pi*freq_hf*10.0**6
-    
-        #define some physical constants
-        electronCharge = 1.602*10.0**(-19)
-        electronMass = 9.109*10.0**(-31)
-        eps0 = 8.854*10.0**(-12)
-    
-        #get the required ISR data for the calculation
-        density = self.data['density']
-        B = self.data['babs']
-        #colFreq = self.data['fits'][:,:,:,5,2]
-    
-        #set up the arrays to put results of calculations in
-        (numT,numB,numR) = density.shape
-        nO = np.zeros((numT,numB,numR),dtype=np.complex)
-        nX = np.zeros((numT,numB,numR),dtype=np.complex)
-    
-        #iterate through and calculate
-        for r in range(numR):
-            for b in range(numB):
-                for t in range(numT):
-                    X = (density[t,b,r]*electronCharge**2/(electronMass*eps0))/(ang_freq_hf)**2
-                    Y = B[b,r]*electronCharge/(electronMass*ang_freq_hf)
-                    Z = 0.0/ang_freq_hf #include collision frequency in here some day maybe?
-          
-                    #since HF backscatter occurs when k and B are perpendicular
-                    theta = np.pi/2.0
-          
-                    nO[t,b,r] = np.sqrt(1-X/(1 - np.complex(0,Z) - (0.5*(Y*np.sin(theta))**2/(1-X-np.complex(0,Z))) +
-                        np.sqrt(0.25*(Y*np.sin(theta))**4+(Y*np.cos(theta)*(1-X-np.complex(0,Z)))**2)/(1-X-np.complex(0,Z))))
-                    nX[t,b,r] = np.sqrt(1-X/(1- np.complex(0,Z) - (0.5*(Y*np.sin(theta))**2/(1-X-np.complex(0,Z))) -
-                        np.sqrt(0.25*(Y*np.sin(theta))**4+(Y*np.cos(theta)*(1-X-np.complex(0,Z)))**2)/(1-X-np.complex(0,Z))))
-    
-        #calculate the average refractive index
-        n = (nO + nX) / 2.0
-    
-        self.data['refracindO'] = nO
-        self.data['refracindX'] = nX
-        self.data['refracind'] = n
-
-####################################################################################
-####################################################################################
-####################################################################################
-
     def profile_plot(self, params, time, param_lim=None, bmnum=None, ylim=None, rang=None):
         """ Create a profile plot
     
@@ -1323,6 +729,607 @@ class analyze(object):
 ####################################################################################
 ####################################################################################
 ####################################################################################
+
+
+    def plot_beams3D(self, param, time, xlim=None, ylim=None, zmax=None, clim=None, cmap=None, sym_size=5):
+        """ Make a plot showing ISR data along each beam in 3D.
+    
+        **Args**:
+          * **param** (str): The parameter to plot: 'density','Te','Ti','velocity'
+          * **time** (datetime.datetime): the time to plot data for
+          * **[xlim]** (list): list of int/float corresponding to latitude limits to plot data from
+          * **[ylim]** (list): list of int/float corresponding to longitude limits to plot data from
+          * **[zmax]** (int/float): maximum altiude to plot data for
+          * **[clim]** (list): list of lists containing the colorbar limits for each parameter plotted
+          * **[cmap]** (matplotlib.colors.Colormap): a colormap to use for each parameter
+          * **[sym_size]** (int/float): see matplotlib.pyplot.scatter documentation (s parameter)
+    
+        **Example**:
+          ::
+            import pyAMISR
+            from datetime import datetime
+            isr = pyAMISR.analyze('20160302.001_lp_1min.h5')
+            isr.plot_beams3D('density',datetime(2012,11,24,6,40),sym_size=5, clim=[10,12])
+    
+    
+        written by A. S. Reimer, 2013-08
+        """
+    
+        #Check inputs
+        assert(isinstance(param,str)),"params must be one of density, Te, Ti, velocity, refracind, refracindX, or refracindO."
+        assert(isinstance(time,datetime)),"time must be datetime.datetime"
+        assert(not xlim or (isinstance(xlim,list) and len(xlim) == 2)), \
+            "xlim must be None or a list of a start and an end Latitude"
+        if xlim:
+            for l in xlim: assert(isinstance(l,(int,float))),"xlim list entries must be int or float"
+            assert(xlim[0] < xlim[1]),"Starting latitude must be smaller than ending latitude."
+        assert(not ylim or (isinstance(ylim,list) and len(ylim) == 2)), \
+            "ylim must be None or a list of a start and an end Longitude"
+        if ylim:
+            for l in ylim: assert(isinstance(l,(int,float))),"ylim list entries must be int or float"
+            assert(ylim[0] < ylim[1]),"Starting longitude must be smaller than ending longitude."
+    
+        assert(not zmax or isinstance(zmax,(int,float))), \
+            "zmax must be None or the maximum altitude to plot."
+    
+        assert(not clim or (isinstance(clim,list) and len(clim) == 2)), \
+            "clim must be None or a list of a start and an end value in int/float"
+        if clim:
+            for l in clim: assert(isinstance(l,(int,float))),"clim list entries must be int or float"
+            assert(clim[0] < clim[1]),"Starting values must be smaller than ending values."
+    
+        assert(not cmap or isinstance(cmap,(mpl.colors.Colormap, str))), \
+            "cmap must be None, a matplotlib.colors.Colormap, or a string describing a matplotlib.colors.Colormap."
+    
+        np.seterr(all='ignore')	#turn off numpy warnings
+    
+        #Use the default colormap if necessary
+        if not cmap:
+            cmap = 'viridis'
+    
+        #Get the times that data is available and then determine the index
+        #for plotting
+        times = self.data['times']
+        tinds = np.where(np.logical_and(np.array(time) >= times[:,0], np.array(time) <= times[:,1]))[0].tolist()
+    
+        #Now only proceed if the time is found
+        if len(tinds) == 0:
+            print("Time not found!")
+            return
+    
+        tinds = tinds[0]
+    
+        #Get parameter to plot
+        lats = self.data['latitude']
+        lons = self.data['longitude']
+        alts = self.data['altitude'] / 1000.0
+        if (param == 'density'):
+            #detect if input density is log10 yet or not. If not, make it log10 of density (easier to plot)
+            parr = self.data['density'] if self.data['density'].max() < 10**8 else np.log10(self.data['density'])
+            clabel = 'Density log10 /m^3)'
+        elif (param == 'Te'):
+            parr = self.data['Te']
+            clabel = 'Te (K)'
+        elif (param == 'Ti'):
+            parr = self.data['Ti']
+            clabel = 'Ti (K)'
+        elif (param == 'velocity'):
+            parr = self.data['vel']
+            clabel = 'Vlos (m/s)'
+        elif (param =='refracind'):
+            parr = self.data['refracind']
+            clabel = 'Refractive Index'
+        elif (param =='refracindX'):
+            parr = self.data['refracindX']
+            clabel = 'Refractive Index'
+        elif (param =='refracindO'):
+            parr = self.data['refracindO']
+            clabel = 'Refractive Index'
+    
+        #First create a figure with a 3D projection axis
+        fig = pyplot.figure()
+        ax = fig.add_axes([0.00, 0.05, 0.74, 0.9],projection='3d')
+        ax.patch.set_fill(0)
+        cax = fig.add_axes([0.80, 0.2,.03, 0.6])
+    
+        #set the axis tick markers to face outward
+        ax.yaxis.set_tick_params(direction='out')
+        ax.xaxis.set_tick_params(direction='out')
+        ax.yaxis.set_tick_params(direction='out',which='minor')
+        ax.xaxis.set_tick_params(direction='out',which='minor')
+    
+        #generate a scalar colormapping to map data to cmap
+        if not clim:
+            cl = [9,12]
+        else:
+            cl = clim
+        cnorm = colors.Normalize(vmin=cl[0], vmax=cl[1])
+        scalar_map = cmx.ScalarMappable(norm=cnorm, cmap=cmap)
+    
+        #plot the location of the radar
+        ax.scatter(self.site_lon, self.site_lat, self.site_alt, s=sym_size, c='black')
+    
+        #Add a title
+        self.add_title(fig, times[tinds,0], self.data['site_name'], time=times[tinds,:].tolist())
+    
+        #Now plot the data along each beam
+        (numT,numB,numR) = parr.shape
+        for b in range(numB):
+            for r in range(numR):
+                if np.isfinite(parr[tinds,b,r]):
+                      ax.scatter(lons[b,r], lats[b,r], alts[b,r], s=sym_size,
+                                 c=scalar_map.to_rgba(parr[tinds,b,r]),
+                                 edgecolors=scalar_map.to_rgba(parr[tinds,b,r]))
+    
+        #set X, Y, and Z limits if necessary
+        if not xlim:
+             xlim = ax.get_xlim()
+        if not ylim:
+            ylim = ax.get_ylim()
+        if not zmax:
+            zmax = 800.0
+    
+        #Change number of ticks and their spacing
+        ax.set_xticks(np.linspace(xlim[0],xlim[1],num=5))
+        for t in ax.get_xticklabels():
+            t.set_horizontalalignment('right')
+        ax.set_yticks(np.linspace(ylim[0],ylim[1],num=5))
+        for t in ax.get_yticklabels():
+            t.set_horizontalalignment('left')
+        ax.view_init(elev=20, azim=-60)
+        ax.set_zlim([0,zmax])
+    
+        #Label the axes
+        ax.set_xlabel('\nLongitude')
+        ax.set_ylabel('\nLatitude')
+        ax.set_zlabel('Altitude')
+    
+        #add a colorbar and label it properly
+        cbar = mpl.colorbar.ColorbarBase(cax,norm=cnorm,cmap=cmap)
+        cbar.set_label(clabel)
+        cbar.set_ticks(np.linspace(cl[0],cl[1],num=5))
+    
+        #show the figure
+        fig.show()
+    
+        #turn warnings back on
+        np.seterr(all='warn')
+
+
+# ####################################################################################
+# ####################################################################################
+# ####################################################################################
+
+
+#     def isr_bayes_velocity(self,vlos_in,kvecs,beam_ranges):
+#         """ Following Heinselman and Nicolls (2008), calculate a velocity vector and covariance for input line of sight velocities
+    
+#         **Args**:
+#           * **vlos_in** (np.array): N column array of line of sight velocities
+#           * **kvecs** (np.array): Nx3 array of k-vectors of each line of sight velocity
+#           * **beam_ranges** (np.array): N column array of range to each vlos_in
+    
+#         **Example**:
+#           ::
+    
+#             from pyAMISR import *
+#             pyAMISR.isr_bayes_velocity(vlos_in,kvecs,beam_ranges)
+    
+    
+#         .. note:: For more details on the method, see Heinselman and Nicolls, (2008) RADIO SCIENCE, VOL 43, doi:10.1029/2007RS003805
+    
+#         written by A. S. Reimer, 2013-07
+#         """
+    
+#         #First convert ensure that vlos_in is a column vector
+#         nEl     = max(t.shape)
+#         vlos_in = vlos_in.reshape(nEl,1)
+    
+#         #Detect and remove any NaNs!
+#         beams_used  = np.isfinite(vlos_in);
+#         vlos_in     = vlos_in[np.where(beams_used)]
+#         kvecs       = kvecs[:,np.where(beams_used)]
+#         beam_ranges = beam_ranges[np.where(beams_used)]
+    
+#         #Build the a priori covariance matricies
+#         vlosErrorSlope = 1/10.0  #1m/s covariance per 10km altitude (but quadratic relation) (per page 8 Heinselman/Nicolls 2008)
+#         sigmaE = np.diag((vlosErrorSlope*beam_ranges)**2)  #covariance for vlos_in error (could this be calculated from vlos error in ISR data?)
+    
+#         velError = [3000,3000,15]           #covariance for bayes_vel as per the paper
+#         sigmaV   = np.diag(velError)        #a priori covariance matrix for bayes_vel
+    
+#         #Calculate the Bayesian velocity (equations 12 and 13)
+#         A = kvecs
+    
+#         bayes_vel = np.dot(sigmaV, A.T, np.linalg.solve(np.dot(A, sigmaV, A.T) + sigmaE, vlos_in))
+#         bayes_cov = np.linalg.inv(np.dot(A.T, np.linalg.solve(sigmaE, A)) + np.linalg.inv(sigmaV))
+    
+#         self.beams_used = beams_used          #an array of the beams the velocities used
+#         self.bayes_vel = bayes_vel            #the Bayesian derived velocity vector
+#         self.bayes_cov = bayes_cov            #the Bayesian derived covariance matrix for bayes_vel
+
+
+# ####################################################################################
+# ####################################################################################
+# ####################################################################################
+
+
+#     def get_beam_grid_inds(self,code):
+#         """ A function to calculate an array of indicies that can be use to plot ISR data in a grid.
+    
+#         **Args**:
+#           * **code** (int/float): the code for each beam pattern
+    
+#         **Example**:
+#           ::
+#             import pyAMISR
+#             isr=pyAMISR.analyze('20160302.001_lp_1min.h5')
+#             isr.get_beam_grid_inds(0)
+#             print isr.beam_grid_inds
+    
+#         written by A. S. Reimer, 2013-08
+#         """
+    
+#         import numpy as np
+#         if code == 0:
+#             #TODO, add more beam patterns
+#             #Beam Pattern for 40 beam pattern
+#             grid = np.array([[ 7,22,20,23,14],
+#                              [24,25,26,27,13],
+#                              [ 6,28,29,30,31],
+#                              [ 5,32,19,33,12],
+#                              [ 4,34,18,35,11],
+#                              [ 3,36,17,37,10],
+#                              [ 2,38,16,39, 9],
+#                              [ 1,40,15,41, 8]]) - 1
+#         if code == 1:
+#             #Beam Pattern for 42 beam grid within the 51 beam mode
+#             grid = np.array([[45,44,48,47,46,43,42],
+#                              [38,37,41,40,39,36,35],
+#                              [31,30,34,33,32,29,28],
+#                              [24,23,27,26,25,22,21],
+#                              [17,16,20,19,18,15,14],
+#                              [10, 9,13,12,11, 8, 7]]) - 1
+    
+#         self.beam_grid_inds = grid
+
+
+# ####################################################################################
+# ####################################################################################
+# ####################################################################################
+
+
+#     def calc_horiz_slice(self, param, altitude):
+#         """ A function to calculate and return ISR data, latitude, and longitude at a given altitude. This routine will automatically interpolate the data and coords into a local horizontal plane at the requested altitude.
+    
+#         **Args**:
+#           * **param** (str): The parameter to interpolate: 'density', 'Te', 'Ti', 'velocity', 'refracind', 'refracindO', 'refracindX'.
+#           * **altitude** (int/float): the altitude to calculate the data at in kilometers.
+#           * **[coords]** (str): either 'geo' or 'mag'
+    
+#         **Output**:
+#           A dictionary with keys:
+#             'data' - the data at requested altitude.
+#             'lats' - the geographic latitude of the beam.
+#             'lons' - the geographic longitude of the beam.
+#             'corner_lat' - the corner latitudes of the beam pattern.
+#             'corner_lon' - the corner longitude of the beam pattern.
+    
+#         **Example**:
+#           ::
+#             import pyAMISR
+#             isr = pyAMISR.analyze('20160302.001_lp_1min.h5')
+#             interps = isr.calc_horiz_slice('density',250.0)
+    
+#         written by A. S. Reimer, 2013-08
+#         """
+    
+#         import numpy as np
+    
+#         #Get the ISR data to use
+#         lats = self.data['latitude']
+#         lons = self.data['longitude']
+#         lat_lon_alts = self.data['altitude'] / 1000.0
+    
+#         if (param == 'density'):
+#             parr = self.data['density']
+#         elif (param == 'density_uncor'):
+#             parr = self.data['density_uncor']
+#             alts = self.data['altitude_uncor'] / 1000.0
+#         elif (param == 'Te'):
+#             parr = self.data['Te']
+#         elif (param == 'Ti'):
+#             parr = self.data['Ti']
+#         elif (param == 'velocity'):
+#             parr = self.data['vel']
+#         elif (param == 'refracind'):
+#             parr = self.data['refracind']
+#         elif (param == 'refracindO'):
+#             parr = self.data['refracindO']
+#         elif (param == 'refracindX'):
+#             parr = self.data['refracindX']
+    
+#         #Set up some output arrays
+#         (numT,numB,numR) = parr.shape
+#         pout = np.zeros((numT,numB))
+#         latout = np.zeros((numB))
+#         lonout = np.zeros((numB))
+    
+#         #Loop through each beam
+#         for b in range(numB):
+#             # Do data first
+#             #first check to see if requested altitude is equal to exisiting altitude
+#             rInd_eq = np.where(np.array(altitude) == alts[b,:])[0].tolist()
+#             if len(rInd_eq) == 0:
+#                 #now get the indicies for the altitude above and below the requested altitude
+#                 rInd_p = np.where(alts[b,:]-np.array(altitude) > 0)[0].tolist()
+#                 rInd_m = np.where(np.array(altitude)-alts[b,:] > 0)[0].tolist()
+#                 if (len(rInd_p) > 0 and len(rInd_m) > 0):
+#                     #if they are found then calculate the weighted average of
+#                     rInd_p = rInd_p[0]
+#                     rInd_m = rInd_m[-1]
+          
+#                     alt_p = alts[b,rInd_p]
+#                     alt_m = alts[b,rInd_m]
+#                     dp = alt_p - altitude
+#                     dm = altitude - alt_m
+#                     dt = dp + dm
+          
+#                     #data
+#                     pout[:,b] = parr[:,b,rInd_p]*dm/dt + parr[:,b,rInd_m]*dp/dt
+#                 else:
+#                     #if no data found, set things to NaN
+#                     pout[:,b] = np.zeros(numT)*np.nan
+#             else:
+#                 rInd_eq = rInd_eq[0]
+#                 pout[:,b] = parr[:,b,rInd_eq]
+    
+#             # Now to lats and lons
+#             #first check to see if requested altitude is equal to exisiting altitude
+#             rInd_eq = np.where(np.array(altitude) == lat_lon_alts[b,:])[0].tolist()
+#             if len(rInd_eq) == 0:
+#                 #now get the indicies for the altitude above and below the requested altitude
+#                 rInd_p = np.where(lat_lon_alts[b,:] - np.array(altitude) > 0)[0].tolist()
+#                 rInd_m = np.where(np.array(altitude) - lat_lon_alts[b,:] > 0)[0].tolist()
+        
+#                 if (len(rInd_p) > 0 and len(rInd_m) > 0):
+#                     #if they are found then calculate the weighted average of
+#                     rInd_p = rInd_p[0]
+#                     rInd_m = rInd_m[-1]
+          
+#                     alt_p = lat_lon_alts[b,rInd_p]
+#                     alt_m = lat_lon_alts[b,rInd_m]
+#                     dp = alt_p - altitude
+#                     dm = altitude - alt_m
+#                     dt = dp + dm
+          
+#                     #lats and lons
+#                     latout[b] = lats[b,rInd_p]*dm/dt + lats[b,rInd_m]*dp/dt
+#                     lonout[b] = lons[b,rInd_p]*dm/dt + lons[b,rInd_m]*dp/dt
+#                 else:
+#                     #if no data found, set things to NaN
+#                     latout[b] = np.nan
+#                     lonout[b] = np.nan
+#             else:
+#                 rInd_eq = rInd_eq[0]
+#                 latout[b] = lats[b,rInd_eq]
+#                 lonout[b] = lons[b,rInd_eq]
+    
+#         #Now calculate the corner latitudes and longitude for each beam
+#         cell_coords = self.get_grid_cell_corners(latout,lonout)
+#         #Now build a dictionary for output
+#         outs={}
+#         outs['data'] = pout
+#         outs['lats'] = latout
+#         outs['lons'] = lonout
+#         outs['corner_lat'] = cell_coords['corner_lat']
+#         outs['corner_lon'] = cell_coords['corner_lon']
+    
+#         return outs
+
+
+# ####################################################################################
+# ####################################################################################
+# ####################################################################################
+
+
+#     def get_grid_cell_corners(self,lats,lons):
+#         """ A function to calculate and return the corners of a grid of input latitudes and longitudes. This should usually only be used by the self.calc_horiz_slice method.
+    
+#         **Args**:
+#           * **lats** : the interpolated latitudes from self.calc_horiz_slice method.
+#           * **lons** : the interpolated longitudes from self.calc_horiz_slice method.
+    
+#         **Output**:
+#           A dictionary with keys:
+#             'corner_lat' - the corner latitudes of the beam pattern.
+#             'corner_lon' - the corner longitude of the beam pattern.
+    
+#         written by A. S. Reimer, 2013-08
+#         """
+#         import numpy as np
+    
+#         (t,o) = self.beam_grid_inds.shape
+#         corner_lat = np.zeros((t,o,4))
+#         corner_lon = np.zeros((t,o,4))
+#         t,o = t-1,o-1
+    
+#         lat = lats[self.beam_grid_inds] #define for readability
+#         lon = lons[self.beam_grid_inds]
+    
+#         #Now generate the points for the grid
+#         #INSIDE
+#         for i in range(1,t):
+#             for j in range(1,o):
+#                   corner_lat[i,j,0] = (lat[i-1,j-1]+lat[i,j-1]+lat[i,j]+lat[i-1,j])/4
+#                   corner_lat[i,j,1] = (lat[i,j-1]+lat[i+1,j-1]+lat[i+1,j]+lat[i,j])/4
+#                   corner_lat[i,j,2] = (lat[i,j]+lat[i+1,j]+lat[i+1,j+1]+lat[i,j+1])/4
+#                   corner_lat[i,j,3] = (lat[i-1,j]+lat[i,j]+lat[i,j+1]+lat[i-1,j+1])/4
+#                   corner_lon[i,j,0] = (lon[i-1,j-1]+lon[i,j-1]+lon[i,j]+lon[i-1,j])/4
+#                   corner_lon[i,j,1] = (lon[i,j-1]+lon[i+1,j-1]+lon[i+1,j]+lon[i,j])/4
+#                   corner_lon[i,j,2] = (lon[i,j]+lon[i+1,j]+lon[i+1,j+1]+lon[i,j+1])/4
+#                   corner_lon[i,j,3] = (lon[i-1,j]+lon[i,j]+lon[i,j+1]+lon[i-1,j+1])/4
+    
+#         #EDGES
+#         for i in range(1,t):
+#             corner_lat[i,0,0] = 2*corner_lat[i,1,0]-corner_lat[i,1,3]
+#             corner_lat[i,0,1] = 2*corner_lat[i,1,1]-corner_lat[i,1,2]
+#             corner_lat[i,0,2] = corner_lat[i,1,1]
+#             corner_lat[i,0,3] = corner_lat[i,1,0]
+      
+#             corner_lon[i,0,0] = 2*corner_lon[i,1,0]-corner_lon[i,1,3]
+#             corner_lon[i,0,1] = 2*corner_lon[i,1,1]-corner_lon[i,1,2]
+#             corner_lon[i,0,2] = corner_lon[i,1,1]
+#             corner_lon[i,0,3] = corner_lon[i,1,0]
+      
+#             corner_lat[i,o,3] = 2*corner_lat[i,o-1,3]-corner_lat[i,o-1,0]
+#             corner_lat[i,o,2] = 2*corner_lat[i,o-1,2]-corner_lat[i,o-1,1]
+#             corner_lat[i,o,1] = corner_lat[i,o-1,2]
+#             corner_lat[i,o,0] = corner_lat[i,o-1,3]
+#             corner_lon[i,o,0] = corner_lon[i,o-1,3]
+#             corner_lon[i,o,1] = corner_lon[i,o-1,2]
+#             corner_lon[i,o,2] = 2*corner_lon[i,o-1,2]-corner_lon[i,o-1,1]
+#             corner_lon[i,o,3] = 2*corner_lon[i,o-1,3]-corner_lon[i,o-1,0]
+      
+    
+#         for i in range(1,o):
+#             corner_lat[0,i,0] = 2*corner_lat[1,i,0]-corner_lat[1,i,1]
+#             corner_lat[0,i,1] = corner_lat[1,i,0]
+#             corner_lat[0,i,2] = corner_lat[1,i,3]
+#             corner_lat[0,i,3] = 2*corner_lat[1,i,3]-corner_lat[1,i,2]
+#             corner_lon[0,i,0] = 2*corner_lon[1,i,0]-corner_lon[1,i,1]
+#             corner_lon[0,i,1] = corner_lon[1,i,0]
+#             corner_lon[0,i,2] = corner_lon[1,i,3]
+#             corner_lon[0,i,3] = 2*corner_lon[1,i,3]-corner_lon[1,i,2]
+#             corner_lat[t,i,0] = corner_lat[t-1,i,1]
+#             corner_lat[t,i,1] = 2*corner_lat[t-1,i,1]-corner_lat[t-1,i,0]
+#             corner_lat[t,i,2] = 2*corner_lat[t-1,i,2]-corner_lat[t-1,i,3]
+#             corner_lat[t,i,3] = corner_lat[t-1,i,2]
+#             corner_lon[t,i,0] = corner_lon[t-1,i,1]
+#             corner_lon[t,i,1] = 2*corner_lon[t-1,i,1]-corner_lon[t-1,i,0]
+#             corner_lon[t,i,2] = 2*corner_lon[t-1,i,2]-corner_lon[t-1,i,3]
+#             corner_lon[t,i,3] = corner_lon[t-1,i,2]
+#         #FIRST CORNER
+#         corner_lat[0,0,0] = 2*corner_lat[1,0,0]-corner_lat[1,0,1]
+#         corner_lat[0,0,1] = corner_lat[1,0,0]
+#         corner_lat[0,0,2] = corner_lat[1,1,0]
+#         corner_lat[0,0,3] = corner_lat[0,1,0]
+#         corner_lon[0,0,0] = 2*corner_lon[1,0,0]-corner_lon[1,0,1]
+#         corner_lon[0,0,1] = corner_lon[1,0,0]
+#         corner_lon[0,0,2] = corner_lon[1,1,0]
+#         corner_lon[0,0,3] = corner_lon[0,1,0]
+#         #SECOND CORNER
+#         corner_lat[t,0,0] = corner_lat[t-1,0,1]
+#         corner_lat[t,0,1] = 2*corner_lat[t-1,0,1]-corner_lat[t-1,0,0]
+#         corner_lat[t,0,2] = corner_lat[t,1,1]
+#         corner_lat[t,0,3] = corner_lat[t-1,1,1]
+#         corner_lon[t,0,0] = corner_lon[t-1,0,1]
+#         corner_lon[t,0,1] = 2*corner_lon[t-1,0,1]-corner_lon[t-1,0,0]
+#         corner_lon[t,0,2] = corner_lon[t,1,1]
+#         corner_lon[t,0,3] = corner_lon[t-1,1,1]
+#         #THIRD CORNER
+#         corner_lat[t,o,0] = corner_lat[t-1,o-1,2]
+#         corner_lat[t,o,1] = corner_lat[t,o-1,2]
+#         corner_lat[t,o,2] = 2*corner_lat[t-1,o,2]-corner_lat[t-1,o,3]
+#         corner_lat[t,o,3] = corner_lat[t-1,o,2]
+#         corner_lon[t,o,0] = corner_lon[t-1,o-1,2]
+#         corner_lon[t,o,1] = corner_lon[t,o-1,2]
+#         corner_lon[t,o,2] = 2*corner_lon[t-1,o,2]-corner_lon[t-1,o,3]
+#         corner_lon[t,o,3] = corner_lon[t-1,o,2]
+#         #FOURTH CORNER
+#         corner_lat[0,o,0] = corner_lat[0,o-1,3]
+#         corner_lat[0,o,1] = corner_lat[1,o-1,3]
+#         corner_lat[0,o,2] = corner_lat[1,o,3]
+#         corner_lat[0,o,3] = 2*corner_lat[1,o,3]-corner_lat[1,o,2]
+#         corner_lon[0,o,0] = corner_lon[0,o-1,3]
+#         corner_lon[0,o,1] = corner_lon[1,o-1,3]
+#         corner_lon[0,o,2] = corner_lon[1,o,3]
+#         corner_lon[0,o,3] = 2*corner_lon[1,o,3]-corner_lon[1,o,2]
+    
+#         outLat = np.zeros((self.num_beams,4))
+#         outLon = np.zeros((self.num_beams,4))
+#         for i in range(0,self.num_beams):
+#             (x,y) = np.where(self.beam_grid_inds == i)
+#             if len(x):
+#                 outLat[i,:] = corner_lat[x,y,:]
+#                 outLon[i,:] = corner_lon[x,y,:]
+#             else:
+#                 outLat[i,:] = np.nan
+#                 outLon[i,:] = np.nan
+#         cell_coords = {}
+#         cell_coords['corner_lat'] = outLat
+#         cell_coords['corner_lon'] = outLon
+    
+#         return cell_coords
+
+
+# ####################################################################################
+# ####################################################################################
+# ####################################################################################
+
+
+#     def calc_refractive_index(self,_freq_hf):
+#         """ A function to calculate the refractive index at HF frequencies from ISR density measurements
+    
+#         **Args**:
+#           * **_freq_hf** (int/float): The HF frequency transmitted by an HF radar in MHz.
+    
+#         **Example**:
+#           ::
+#             import pyAMISR
+#             isr = pyAMISR.analyze('20160302.001_lp_1min.h5')
+#             isr.calc_refractive_index(10.5)
+    
+#         written by A. S. Reimer, 2013-08
+#         """
+    
+#         import numpy as np
+    
+#         #calculate the angular frequency of the input HF frequency
+#         ang_freq_hf = 2.0*np.pi*freq_hf*10.0**6
+    
+#         #define some physical constants
+#         electronCharge = 1.602*10.0**(-19)
+#         electronMass = 9.109*10.0**(-31)
+#         eps0 = 8.854*10.0**(-12)
+    
+#         #get the required ISR data for the calculation
+#         density = self.data['density']
+#         B = self.data['babs']
+#         #colFreq = self.data['fits'][:,:,:,5,2]
+    
+#         #set up the arrays to put results of calculations in
+#         (numT,numB,numR) = density.shape
+#         nO = np.zeros((numT,numB,numR),dtype=np.complex)
+#         nX = np.zeros((numT,numB,numR),dtype=np.complex)
+    
+#         #iterate through and calculate
+#         for r in range(numR):
+#             for b in range(numB):
+#                 for t in range(numT):
+#                     X = (density[t,b,r]*electronCharge**2/(electronMass*eps0))/(ang_freq_hf)**2
+#                     Y = B[b,r]*electronCharge/(electronMass*ang_freq_hf)
+#                     Z = 0.0/ang_freq_hf #include collision frequency in here some day maybe?
+          
+#                     #since HF backscatter occurs when k and B are perpendicular
+#                     theta = np.pi/2.0
+          
+#                     nO[t,b,r] = np.sqrt(1-X/(1 - np.complex(0,Z) - (0.5*(Y*np.sin(theta))**2/(1-X-np.complex(0,Z))) +
+#                         np.sqrt(0.25*(Y*np.sin(theta))**4+(Y*np.cos(theta)*(1-X-np.complex(0,Z)))**2)/(1-X-np.complex(0,Z))))
+#                     nX[t,b,r] = np.sqrt(1-X/(1- np.complex(0,Z) - (0.5*(Y*np.sin(theta))**2/(1-X-np.complex(0,Z))) -
+#                         np.sqrt(0.25*(Y*np.sin(theta))**4+(Y*np.cos(theta)*(1-X-np.complex(0,Z)))**2)/(1-X-np.complex(0,Z))))
+    
+#         #calculate the average refractive index
+#         n = (nO + nX) / 2.0
+    
+#         self.data['refracindO'] = nO
+#         self.data['refracindX'] = nX
+#         self.data['refracind'] = n
+
+# ####################################################################################
+# ####################################################################################
+# ####################################################################################
+
 
 # TEMPORARILY REMOVED UNTIL CARTOPY IS INTEGRATED FULLY. REQUIRES A MAJOR REWRITE
   # def overlayData(self, param, time, altitude, clim=None, cmap=None, myax=None,
