@@ -318,8 +318,8 @@ class analyze(object):
             from datetime import datetime
             isr = pyAMISR.analyze('20160302.001_lp_1min.h5')
             isr.rti(['density','Te','Ti','velocity'],
-                    time_lim=[datetime(2012,11,24,6,0),datetime(2012,11,24,7)],
-                    ylim=[100,500],bmnum=33)
+                    time_lim=[datetime(2016,3,2,6,0),datetime(2016,3,2,17)],
+                    ylim=[100,500],bmnum=10)
     
     
         written by A. S. Reimer, 2013-07
@@ -418,7 +418,9 @@ class analyze(object):
         fig = pyplot.figure(figsize=(11,8.5))
     
         #add a title
-        self.add_title(fig,self.stime,self.data['site_name'],bmnum)
+        az = self.data['az'][bmnum]
+        el = self.data['el'][bmnum]
+        self.add_title(fig,self.stime,self.data['site_name'],bmnum=bmnum,az=az,el=el,xmax=.85)
     
         #iterate through the list of parameters and plot each one
         figtop = .85
@@ -480,6 +482,7 @@ class analyze(object):
             ax.set_ylabel(ylabel)
       
             #plot little rectangles for each data point and color them according to the scalar mapping we created
+            #TODO: use pcolormesh instead
             for i in range(lr):
                 for j in range(lt):
                     if np.isfinite(parr[tinds[j],bmnum,i]):
@@ -502,14 +505,16 @@ class analyze(object):
 ####################################################################################
 
 
-    def add_title(self, fig, date, rad, beam=None, time=None, xmin=.1,xmax=.86,y=0.9):
+    def add_title(self, fig, date, rad, beam=None, az=None, el=None, time=None, xmin=.1,xmax=.86,y=0.9):
         """draws title for an rti plot
     
         **Args**:
           * **fig**: the figure object to title
           * **date**: the date being plotted as a datetime object
           * **rad**: the name of the radar
-          * **beam**: the beam number being plotted
+          * **[beam]**: the beam number being plotted
+          * **[az]**: the azimuth of the beam being plotted
+          * **[el]**: the elevation of the beam being plotted
           * **[xmin]**: minimum x value to plot in page coords
           * **[xmax]**: maximum x value to plot in page coords
           * **[y]**: y value to put title at in page coords
@@ -543,7 +548,10 @@ class analyze(object):
                      weight=550,size='large',ha='center')
     
         if type(beam) != type(None):
-            fig.text(xmax,y,'Beam '+ str(beam),weight=550,ha='right')
+            if not (az is None) and not (el is None):
+                fig.text(xmax,y,'Beam: %s\nAz: %s El: %s' % (str(beam),str(az),str(el)),weight=550,ha='right')
+            else:
+                fig.text(xmax,y,'Beam: %s' % (str(beam)),weight=550,ha='right')
 
 
 ####################################################################################
@@ -1167,9 +1175,10 @@ class analyze(object):
             from datetime import datetime
             isr = pyAMISR.analyze('20160302.001_lp_1min.h5')
             isr.profile_plot(['density','Te','Ti','velocity'],
-                            datetime(2012,11,24,6,5,0),bmnum=40,
-                            param_lim=[[10**10,10**12],[0,5000],[0,4000],
-                                       [-1000,1000]],rang=True)
+                             datetime(2016,3,2,14,55),bmnum=10,
+                             param_lim=[[10**10,10**12],[0,5000],[0,4000],
+                                        [-1000,1000]],rang=True)
+
     
     
         written by A. S. Reimer, 2013-09
@@ -1231,7 +1240,9 @@ class analyze(object):
         fig = pyplot.figure(figsize=(11,8.5))
     
         #add a title
-        self.add_title(fig,self.stime, self.data['site_name'],beam=bmnum, time=[times[tinds,0],times[tinds,1]], y=0.92)
+        az = self.data['az'][bmnum]
+        el = self.data['el'][bmnum]
+        self.add_title(fig,self.stime, self.data['site_name'],beam=bmnum,az=az,el=el,time=[times[tinds,0],times[tinds,1]],y=0.92)
     
         #iterate through the list of parameters and plot each one
         figwidth = .75/len(params)
