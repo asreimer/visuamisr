@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-""" visamisr is a data visualization tool for AMISR data
+""" visuamisr is a data visualization tool for AMISR data
 It provides:
 - A data reading utilty
 - Range Time Intensity plotting
@@ -50,19 +50,19 @@ repo root directory."
 #############################################################################
 # Now execute the setup
 #############################################################################
-setup(name='visamisr',
+setup(name='visuamisr',
       install_requires=REQUIREMENTS,
       setup_requires=REQUIREMENTS,
       version="2.0.0",
       description=DESC,
       author="Ashton S. Reimer",
       author_email="ashtonsethreimer@gmail.com",
-      url="https://github.com/asreimer/visamisr",
-      download_url="https://github.com/asreimer/visamisr",
+      url="https://github.com/asreimer/visuamisr",
+      download_url="https://github.com/asreimer/visuamisr",
       packages=find_packages(),
       long_description=READMETXT,
       zip_safe=False,
-      py_modules=['visamisr'],
+      py_modules=['visuamisr'],
       classifiers=["Development Status :: 2.0.0 - Release",
                    "Topic :: Scientific/Engineering",
                    "Intended Audience :: Science/Research",

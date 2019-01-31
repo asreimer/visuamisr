@@ -2,7 +2,7 @@
 # Copyright (C) 2013  Ashton S. Reimer
 # Full license can be found in LICENSE.txt
 """
-visamisr
+visuamisr
 ------
 
 Module for plotting AMISR data

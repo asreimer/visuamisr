@@ -108,8 +108,8 @@ def read_data(filepath):
 
     **Example**:
       ::
-        import visamisr
-        data = visamisr.read_data('20160302.001_lp_1min-fitcal.h5')
+        import visuamisr
+        data = visuamisr.read_data('20160302.001_lp_1min-fitcal.h5')
 
     written by A. S. Reimer, 2013-07
     """
@@ -240,8 +240,8 @@ class Analyze():
 
         **Example**:
           ::
-            import visamisr
-            isr = visamisr.Analyze('20160302.001_lp_1min-fitcal.h5')
+            import visuamisr
+            isr = visuamisr.Analyze('20160302.001_lp_1min-fitcal.h5')
 
         written by A. S. Reimer, 2013-07
         modified by A. S. Reimer 2016-05
@@ -280,8 +280,8 @@ class Analyze():
 
         **Example**:
           ::
-            import visamisr
-            isr = visamisr.Analyze('20160302.001_lp_1min-fitcal.h5')
+            import visuamisr
+            isr = visuamisr.Analyze('20160302.001_lp_1min-fitcal.h5')
             isr.plot_polar_beam_pattern(min_elevation=10)
 
         written by A. S. Reimer, 2013-07
@@ -366,9 +366,9 @@ class Analyze():
 
         **Example**:
           ::
-            import visamisr
+            import visuamisr
             from datetime import datetime
-            isr = visamisr.Analyze('20160302.001_lp_1min-fitcal.h5')
+            isr = visuamisr.Analyze('20160302.001_lp_1min-fitcal.h5')
             isr.rti(['density','Te','Ti','velocity'],
                     time_lim=[datetime(2016,3,2,6,0),datetime(2016,3,2,17)],
                     ylim=[100,500],bmnum=10)
@@ -588,10 +588,10 @@ class Analyze():
           ::
 
             from datetime import datetime
-            import visamisr
+            import visuamisr
             from matplotlib import pyplot
             fig = pyplot.figure()
-            visamisr.add_title(fig,datetime(2011,1,1),'PFISR',beam=7)
+            visuamisr.add_title(fig,datetime(2011,1,1),'PFISR',beam=7)
 
         Written by A. S. Reimer 2013/07
         Adapted from rtiTitle in DaViTpy written by AJ 20121002
@@ -643,9 +643,9 @@ class Analyze():
 
         **Example**:
           ::
-            import visamisr
+            import visuamisr
             from datetime import datetime
-            isr = visamisr.Analyze('20160302.001_lp_1min-fitcal.h5')
+            isr = visuamisr.Analyze('20160302.001_lp_1min-fitcal.h5')
             isr.profile_plot(['density','Te','Ti','velocity'],
                              datetime(2016,3,2,14,55),bmnum=10,
                              param_lim=[[10**10,10**12],[0,5000],[0,4000],
@@ -833,9 +833,9 @@ class Analyze():
 
         **Example**:
           ::
-            import visamisr
+            import visuamisr
             from datetime import datetime
-            isr = visamisr.Analyze('20160302.001_lp_1min-fitcal.h5')
+            isr = visuamisr.Analyze('20160302.001_lp_1min-fitcal.h5')
             isr.plot_beams3d('density',datetime(2012,11,24,6,40),sym_size=5, clim=[10,12d)
 
 
