@@ -54,7 +54,7 @@ import numpy as np
 import matplotlib as mpl
 import matplotlib.cm as cmx
 from matplotlib import pyplot, colors, dates
-
+from mpl_toolkits.mplot3d import Axes3D
 
 from . import Path
 
@@ -108,8 +108,8 @@ def read_data(filepath):
 
     **Example**:
       ::
-        import pyamisr
-        data = pyamisr.read_data('20160302.001_lp_1min.h5')
+        import visamisr
+        data = visamisr.read_data('20160302.001_lp_1min-fitcal.h5')
 
     written by A. S. Reimer, 2013-07
     """
@@ -216,7 +216,7 @@ class Analyze():
     """ Provides 3 plotting utilities for visualizing AMISR data.
 
       *********************
-      **Module**: analyze
+      **Class**: Analyze
       *********************
       Read ISR data dictionary from hdf5 file and plot the data.
 
@@ -240,8 +240,8 @@ class Analyze():
 
         **Example**:
           ::
-            import pyamisr
-            isr = pyamisr.Analyze('20160302.001_lp_1min.h5')
+            import visamisr
+            isr = visamisr.Analyze('20160302.001_lp_1min-fitcal.h5')
 
         written by A. S. Reimer, 2013-07
         modified by A. S. Reimer 2016-05
@@ -280,8 +280,8 @@ class Analyze():
 
         **Example**:
           ::
-            import pyamisr
-            isr = pyamisr.Analyze('20160302.001_lp_1min.h5')
+            import visamisr
+            isr = visamisr.Analyze('20160302.001_lp_1min-fitcal.h5')
             isr.plot_polar_beam_pattern(min_elevation=10)
 
         written by A. S. Reimer, 2013-07
@@ -366,9 +366,9 @@ class Analyze():
 
         **Example**:
           ::
-            import pyamisr
+            import visamisr
             from datetime import datetime
-            isr = pyamisr.Analyze('20160302.001_lp_1min.h5')
+            isr = visamisr.Analyze('20160302.001_lp_1min-fitcal.h5')
             isr.rti(['density','Te','Ti','velocity'],
                     time_lim=[datetime(2016,3,2,6,0),datetime(2016,3,2,17)],
                     ylim=[100,500],bmnum=10)
@@ -489,7 +489,7 @@ class Analyze():
                 if self.data['density'].max() < 10**8:
                     parr = self.data['density']
                 else:
-                    np.log10(self.data['density'])
+                    parr = np.log10(self.data['density'])
                 clabel = 'Density\nlog10 /m^3)'
             elif param == 'Te':
                 parr = self.data['Te']
@@ -588,10 +588,10 @@ class Analyze():
           ::
 
             from datetime import datetime
-            import pyamisr
+            import visamisr
             from matplotlib import pyplot
             fig = pyplot.figure()
-            pyamisr.add_title(fig,datetime(2011,1,1),'PFISR',beam=7)
+            visamisr.add_title(fig,datetime(2011,1,1),'PFISR',beam=7)
 
         Written by A. S. Reimer 2013/07
         Adapted from rtiTitle in DaViTpy written by AJ 20121002
@@ -643,9 +643,9 @@ class Analyze():
 
         **Example**:
           ::
-            import pyamisr
+            import visamisr
             from datetime import datetime
-            isr = pyamisr.Analyze('20160302.001_lp_1min.h5')
+            isr = visamisr.Analyze('20160302.001_lp_1min-fitcal.h5')
             isr.profile_plot(['density','Te','Ti','velocity'],
                              datetime(2016,3,2,14,55),bmnum=10,
                              param_lim=[[10**10,10**12],[0,5000],[0,4000],
@@ -726,8 +726,6 @@ class Analyze():
         figwidth = .75 / len(params)
         for i, param in enumerate(params):
             if param == 'density':
-                # Detect if input density is log10 yet or not.
-                # If not, make it log10 of density
                 parr = self.data['density']
                 perr = self.data['edensity']
                 plabel = 'Density (/m^3)'
@@ -835,9 +833,9 @@ class Analyze():
 
         **Example**:
           ::
-            import pyamisr
+            import visamisr
             from datetime import datetime
-            isr = pyamisr.Analyze('20160302.001_lp_1min.h5')
+            isr = visamisr.Analyze('20160302.001_lp_1min-fitcal.h5')
             isr.plot_beams3d('density',datetime(2012,11,24,6,40),sym_size=5, clim=[10,12d)
 
 
@@ -910,7 +908,7 @@ class Analyze():
             if self.data['density'].max() < 10**8:
                 parr = self.data['density']
             else:
-                np.log10(self.data['density'])
+                parr = np.log10(self.data['density'])
             clabel = 'Density log10 /m^3)'
         elif param == 'Te':
             parr = self.data['Te']
@@ -955,7 +953,7 @@ class Analyze():
             for rind in range(num_ranges):
                 if np.isfinite(parr[tinds, bind, rind]):
                     ax.scatter(lons[bind, rind], lats[bind, rind], alts[bind, rind], s=sym_size,
-                               c=scalar_map.to_rgba(parr[tinds, bind, rind]),
+                               c=[scalar_map.to_rgba(parr[tinds, bind, rind])],
                                edgecolors=scalar_map.to_rgba(parr[tinds, bind, rind]))
 
         #set X, Y, and Z limits if necessary
