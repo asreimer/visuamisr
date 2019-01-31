@@ -1,6 +1,14 @@
 =======
-pyAMISR
+pyAMISR - CAUTION: deprecated! Now called visuamisr!
 =======
+
+The project has been renamed and is currently undergoing development towards a 2.0.0 release.
+
+Please use the develop branch for the latest supported version of this software.
+
+What follows is the original readme for pyAMISR:
+---------------------------------------
+
 A library of data plotting utilities for visualizing processed Advance Modular Incoherent Scatter Radar (AMISR) data.
 
 Install
