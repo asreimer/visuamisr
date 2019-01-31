@@ -9,24 +9,30 @@ The full license can be found in LICENSE.txt
 """
 
 import os
+import sys
 import subprocess
 from setuptools import find_packages, setup
 
 REQUIREMENTS = ['pathlib2', 'numpy', 'matplotlib', 'h5py']
 
+# Do some nice things to help users install on conda.
+if sys.version_info[:2] < (3,0):
+    EXCEPTION = OSError
+else:
+    EXCEPTION = subprocess.builtins.FileNotFoundError
 try:
     subprocess.call(['conda', 'install', ' '.join(REQUIREMENTS)])
     REQUIREMENTS = []
-except subprocess.builtins.FileNotFoundError:
+except EXCEPTION:
     pass
 
-
+# Get the readme text
 README = os.path.join(os.path.dirname(__file__), 'README.md')
 with open(README, 'r') as f:
     READMETXT = f.readlines()
 READMETXT = '\n'.join(READMETXT)
 
-
+# Package description
 DESC = "A library of data plotting utilities for visualizing processed "
 DESC += "Advanced Modular Incoherent Scatter Radar (AMISR) data."
 
