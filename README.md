@@ -58,7 +58,7 @@ The altitude profile of various parameters can be plotted. For example::
     isr.profile_plot(['density','Te','Ti','velocity'],
                      datetime(2016,3,2,14,55),bmnum=10,
                      param_lim=[[10**10,10**12],[0,5000],[0,4000],
-                                [-1000,1000]],rang=True)
+                                [-1000,1000]],use_range=True)
 
 3D Beam Plotting
 ----------------
