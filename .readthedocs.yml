@@ -7,7 +7,6 @@ formats:
 build:
   image:
     - latest
-    - stable
 
 python:
   version: 3.7
