@@ -72,19 +72,3 @@ A 3 dimensional plot of the beams of the radar colour coded by a plasma paramete
     isr = visuamisr.Analyze('20160302.001_lp_1min-fitcal.h5')
     isr.plot_beams3d('density',datetime(2016,3,2,14,55),sym_size=5,clim=[10,12])
 
-
-Contents:
----------
-
-.. toctree::
-   :maxdepth: 2
-
-   visuamisr
-
-
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
