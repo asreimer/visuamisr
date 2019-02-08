@@ -1,6 +1,5 @@
-=======
 visuamisr
-=======
+=========
 A library of data plotting utilities for visualizing processed Advance Modular Incoherent Scatter Radar (AMISR) data.
 
 Tested and working on both Python 2.7 and Python 3.7.
