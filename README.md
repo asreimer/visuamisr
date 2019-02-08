@@ -1,11 +1,13 @@
 visuamisr
 =========
-A library of data plotting utilities for visualizing processed Advance Modular Incoherent Scatter Radar (AMISR) data.
 
-Tested and working on both Python 2.7 and Python 3.7.
+Overview
+--------
+`visuamisr` provides a basic data visualization tools for working with Advanced Modular Incoherent Scatter Radar (AMISR) data.
 
-Install
-=======
+
+Installation
+------------
 First clone this repository::
 
     git clone https://github.com/asreimer/visuamisr.git
@@ -25,7 +27,7 @@ Makes use of the python wrapper for aacgm and the `mapObj` object in `davitpy`.
 
 
 Usage
-=====
+-----
 
 First, you will need some data! I grabbed a fitted file from https://amisr.com/database, specifically, some PFISR Themis36 data from 2 March, 2016: https://amisr.com/database/61/experiment/20160302.001/3/2. The 20160302.001_lp_1min-fitcal.h5 file is 192 MB in size.
 
@@ -69,3 +71,20 @@ A 3 dimensional plot of the beams of the radar colour coded by a plasma paramete
     from datetime import datetime
     isr = visuamisr.Analyze('20160302.001_lp_1min-fitcal.h5')
     isr.plot_beams3d('density',datetime(2016,3,2,14,55),sym_size=5,clim=[10,12])
+
+
+Contents:
+---------
+
+.. toctree::
+   :maxdepth: 2
+
+   visuamisr
+
+
+Indices and tables
+==================
+
+* :ref:`genindex`
+* :ref:`modindex`
+* :ref:`search`
