@@ -31,7 +31,7 @@ except EXCEPTION:
     pass
 
 # Get the readme text
-README = os.path.join(os.path.dirname(__file__), 'README.md')
+README = os.path.join(os.path.dirname(__file__), 'README.rst')
 with open(README, 'r') as f:
     READMETXT = f.readlines()
 READMETXT = '\n'.join(READMETXT)
