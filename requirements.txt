@@ -1,0 +1,4 @@
+pathlib2
+numpy
+matplotlib
+h5py
