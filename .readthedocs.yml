@@ -5,8 +5,7 @@ formats:
    - pdf
 
 build:
-  image:
-    - latest
+  image: latest
 
 python:
   version: 3.7
