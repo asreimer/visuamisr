@@ -15,12 +15,12 @@ from setuptools import find_packages, setup
 
 # Get the package requirements
 REQSFILE = os.path.join(os.path.dirname(__file__), 'requirements.txt')
-with open(REQSFILE,'r') as f:
+with open(REQSFILE, 'r') as f:
     REQUIREMENTS = f.readlines()
-REQUIREMENTS = '\n'.join(REQUIREMENTS) 
+REQUIREMENTS = '\n'.join(REQUIREMENTS)
 
 # Do some nice things to help users install on conda.
-if sys.version_info[:2] < (3,0):
+if sys.version_info[:2] < (3, 0):
     EXCEPTION = OSError
 else:
     EXCEPTION = subprocess.builtins.FileNotFoundError
