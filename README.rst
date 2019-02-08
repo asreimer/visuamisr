@@ -21,11 +21,6 @@ or with pip::
     pip install .
 
 
-Dependencies
-------------
-Makes use of the python wrapper for aacgm and the `mapObj` object in `davitpy`.
-
-
 Usage
 -----
 
