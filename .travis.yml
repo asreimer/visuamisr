@@ -39,10 +39,11 @@ matrix:
  #   - pytest --cov
  #   - coveralls
   - os: osx
+    python: 3.7
     language: minimal
-    install: pip3 install -e .[tests,full]
+    install: pip3 install -r requirements.txt -e .[tests,full]
 
 
-install: pip install -e .[tests,full]
+install: pip install -r requirements.txt -e .[tests,full]
 
 script: pytest -rsv
