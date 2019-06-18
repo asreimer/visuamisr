@@ -19,8 +19,9 @@ matrix:
   include:
  - os: linux
    python: 3.5
-   apt:
-     packages: python3-setuptools
+   addons:
+     apt:
+       packages: python3-setuptools
    before_install: pip install -U pip
    install: pip install -e .[tests,full,cov]
  #  - os: linux
