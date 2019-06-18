@@ -32,44 +32,6 @@ expected = [('el', 90.0), ('site_name', 'PFISR'),
 
 expected_dict = {key:value for key, value in expected}
 
-expected_keys = [x[0] for x in sorted(expected)]
-print(expected_keys)
-expected_data = [x[1] for x in sorted(expected)]
-
-def test_readdata():
-    lp = visuamisr.Analyze('tests/20190520.003_lp_5min-fitcal.h5')
-    obtained_keys = list()
-    obtained_data = list()
-    for key,item in lp.data.items():
-        if key == 'site_name':   # just ignore for now...
-            continue
-        try:
-            if isinstance(item.flatten()[0],datetime):
-                seconds = (item.flatten()[0]-datetime(1970,1,1)).total_seconds()
-                print(key,seconds)
-                obtained_data.append(seconds)
-                obtained_keys.append(key)
-                continue
-            value = item.flatten()[0]
-        except:
-            value = item
-
-        print(key,value)
-        obtained_data.append(value)
-        obtained_keys.append(key)
-
-
-   
-
-    for i in range(len(obtained_keys)):
-        print(expected_keys[i],obtained_keys[i])
-
-    equal = [a == b for a, b in zip(expected_keys, obtained_keys)]
-    equal.extend([a == approx(b, rel=1e-5, nan_ok=True) for a, b in zip(expected_data, obtained_data)])
-
-    assert all(equal)
-
-
 def test_readdata():
     lp = visuamisr.Analyze('tests/20190520.003_lp_5min-fitcal.h5')
     for key,item in lp.data.items():
