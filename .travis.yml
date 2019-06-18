@@ -30,6 +30,8 @@ matrix:
     python: 2.7
     before_install: pip install matplotlib==2.2.4
   - os: windows
+    language: bash
+    env: PATH="/c/tools/miniconda3/:/c/tools/miniconda3/Scripts:$PATH"
     before_install:
     - choco install miniconda3 
     - conda install pip pytest numpy matplotlib
