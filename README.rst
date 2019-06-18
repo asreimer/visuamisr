@@ -12,9 +12,9 @@ First clone this repository::
 
     git clone https://github.com/asreimer/visuamisr.git
 
-Next run the `setup.py` file::
+Next, `cd` into the repo and install using `pip` file::
 
-    python setup.py develop
+    pip install .
 
 or with pip::
 
