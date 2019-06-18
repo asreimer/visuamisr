@@ -17,6 +17,12 @@ before_install:
 
 matrix:
   include:
+ - os: linux
+   python: 3.5
+   apt:
+     packages: python3-setuptools
+   before_install: pip install -U pip
+   install: pip install -e .[tests,full,cov]
  #  - os: linux
  #    python: 3.8-dev
  #    install: pip install -e .[tests]
@@ -39,11 +45,14 @@ matrix:
  #   - pytest --cov
  #   - coveralls
   - os: osx
-    python: 3.7
+    addons:
+      homebrew:
+        update: true
+        packages: python3
     language: minimal
-    install: pip3 install -r requirements.txt -e .[tests,full]
+    install: pip3 install -e .[tests,full]
 
 
-install: pip install -r requirements.txt -e .[tests,full]
+install: pip install -e .[tests,full]
 
 script: pytest -rsv
