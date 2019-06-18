@@ -450,9 +450,12 @@ class Analyze():
         ave_times = ave_times[tinds]
 
         # #Set up x and y "coordinates" for use with pyplot.fill
+        # some values in rang might be nan, especially if altitude
+        rng_finite_inds = np.where(np.isfinite(rang[bmnum,:]))[0]
+
         num_x = times.shape[0]
-        num_y = rang.shape[1]
-        temp_y = rang[bmnum, :]
+        num_y = rng_finite_inds.size
+        temp_y = rang[bmnum, rng_finite_inds]
         temp_y = np.repeat(temp_y[np.newaxis, :], num_x, axis=0)
         temp_y_diff = np.repeat(np.diff(temp_y[0, :])[np.newaxis, :], num_x, axis=0)
         y_diff = np.zeros(temp_y.shape)
@@ -544,7 +547,9 @@ class Analyze():
             ax.set_ylabel(ylabel)
 
             #plot each data point and color them according to the scalar mapping we created
-            ax.pcolormesh(x_plot, y_plot/1000.0, parr[tinds, bmnum, :], vmin=cbar_lim[0],
+            num_y = y_plot.shape[1] - 1
+            param_to_plot = parr[tinds, bmnum, :num_y]
+            ax.pcolormesh(x_plot, y_plot/1000.0, param_to_plot, vmin=cbar_lim[0],
                           vmax=cbar_lim[1], cmap=cmap)
 
             #add a colorbar and label it properly
