@@ -54,7 +54,6 @@ import numpy as np
 import matplotlib as mpl
 import matplotlib.cm as cmx
 from matplotlib import pyplot, colors, dates
-from mpl_toolkits.mplot3d import Axes3D
 
 from . import Path
 
@@ -451,7 +450,7 @@ class Analyze():
 
         # #Set up x and y "coordinates" for use with pyplot.fill
         # some values in rang might be nan, especially if altitude
-        rng_finite_inds = np.where(np.isfinite(rang[bmnum,:]))[0]
+        rng_finite_inds = np.where(np.isfinite(rang[bmnum, :]))[0]
 
         num_x = times.shape[0]
         num_y = rng_finite_inds.size
