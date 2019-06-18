@@ -34,7 +34,7 @@ matrix:
     env: PATH="/c/tools/miniconda3/:/c/tools/miniconda3/Scripts:$PATH"
     before_install:
     - choco install miniconda3 openssl.light
-    - conda install pip pytest numpy matplotlib
+    - conda install -y pip pytest numpy matplotlib
  # - os: linux
  #   python: 3.7
  #   install: pip install -e .[tests,full,cov]
