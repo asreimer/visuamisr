@@ -32,7 +32,7 @@ expected_data = [('el', 90.0), ('site_name', 'PFISR'),
 
 
 def test_readdata():
-    lp = visuamisr.Analyze('20190520.003_lp_5min-fitcal.h5')
+    lp = visuamisr.Analyze('tests/20190520.003_lp_5min-fitcal.h5')
     obtained_data = list()
     for key in lp.data.keys():
         try:
