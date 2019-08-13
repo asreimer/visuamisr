@@ -54,6 +54,7 @@ import numpy as np
 import matplotlib as mpl
 import matplotlib.cm as cmx
 from matplotlib import pyplot, colors, dates
+from mpl_toolkits.mplot3d import Axes3D
 
 from . import Path
 
@@ -609,8 +610,8 @@ class Analyze():
             clock_time = ''
             for dtime in datetimes:
                 clock_time += '{:s} - '.format(dtime.strftime('%H:%M:%S'))
-            clock_time = '{:d} UT'.format(clock_time[0:-2])
-            title = '{:d}/{:s}/{:d} {:d}'.format(date.day, calendar.month_name[date.month][:3],
+            clock_time = '{:s} UT'.format(clock_time[0:-2])
+            title = '{:d}/{:s}/{:d} {:s}'.format(date.day, calendar.month_name[date.month][:3],
                                                  date.year, clock_time)
             fig.text((xmin + xmax) /2., y, title, weight=550, size='large', ha='center')
         else:
