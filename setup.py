@@ -57,7 +57,7 @@ repo root directory."
 setup(name='visuamisr',
       install_requires=REQUIREMENTS,
       setup_requires=REQUIREMENTS,
-      version="2.0.1",
+      version="2.0.2",
       description=DESC,
       author="Ashton S. Reimer",
       author_email="ashtonsethreimer@gmail.com",
