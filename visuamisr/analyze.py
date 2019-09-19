@@ -175,13 +175,13 @@ def read_data(filepath):
             data['density'] = np.array(h5file['FittedParams']['Ne'])
             data['edensity'] = np.array(h5file['FittedParams']['dNe'])
             temp = np.array(h5file['FittedParams']['Fits'])
-            data['Te'] = temp[:, :, :, 1, 1]
+            data['Te'] = temp[:, :, :, -1, 1]
             data['Ti'] = temp[:, :, :, 0, 1]
-            data['vel'] = temp[:, :, :, 1, 3]
+            data['vel'] = temp[:, :, :, 0, 3]
             temp = np.array(h5file['FittedParams']['Errors'])
-            data['eTe'] = temp[:, :, :, 1, 1]
+            data['eTe'] = temp[:, :, :, -1, 1]
             data['eTi'] = temp[:, :, :, 0, 1]
-            data['evel'] = temp[:, :, :, 1, 3]
+            data['evel'] = temp[:, :, :, 0, 3]
             data['range'] = np.array(h5file['FittedParams']['Range'])
             data['altitude'] = np.array(h5file['FittedParams']['Altitude'])
         else:
