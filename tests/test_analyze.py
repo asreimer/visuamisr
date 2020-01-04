@@ -7,15 +7,19 @@ import pytest
 from pytest import approx
 from datetime import datetime
 import numpy as np
+
+import matplotlib
+matplotlib.use('Agg')
+
 import visuamisr
 
 nan = np.nan
 
 expected = [('el', 90.0), ('site_name', 'PFISR'),
             ('altitude_uncor', -60993.6033013073),
-            ('eTe', nan), ('edensity', 15259290309.927345),
+            ('eTe', 129.63594726065702), ('edensity', 15259290309.927345),
             ('Ti', 503.6725620080873),
-            ('Te', 503.6725620080873), ('evel', nan),
+            ('Te', 322.82619480497675), ('evel', 18.310628762855757),
             ('az', 14.039999961853027), ('density', 50817843097.05468),
             ('site_code', 61), ('site_altitude', 213.0),
             ('latitude', 65.12711), ('vel', 8.94188664493076),
@@ -49,6 +53,31 @@ def test_readdata():
             assert(expected_item == obtained_item)
         else:
             assert(expected_item == approx(obtained_item,nan_ok=True))
+
+def test_rti():
+    from matplotlib import pyplot
+
+    lp = visuamisr.Analyze('tests/20190520.003_lp_5min-fitcal.h5')
+    cmap = pyplot.get_cmap('viridis')
+    lp.rti(['density','velocity'],bmnum=2,cmap=['jet',cmap],show=False)
+
+def test_plot3dbeams():
+    from datetime import datetime
+    lp = visuamisr.Analyze('tests/20190520.003_lp_5min-fitcal.h5')
+    lp.plot_beams3d('density',datetime(2019,5,20,17,20,6),sym_size=5,clim=[10,12],show=False)
+
+def test_profileplot():
+    from datetime import datetime
+    lp = visuamisr.Analyze('tests/20190520.003_lp_5min-fitcal.h5')
+    lp.profile_plot(['density','Te','Ti','velocity'],
+                    datetime(2019,5,20,17,20,6),bmnum=3,
+                    param_lim=[[10**10,10**12],[0,5000],[0,4000],
+                               [-1000,1000]],use_range=True, show=False)
+
+def test_polar_beam_plot():
+    from datetime import datetime
+    lp = visuamisr.Analyze('tests/20190520.003_lp_5min-fitcal.h5')
+    lp.plot_polar_beam_pattern(min_elevation=10,show=False)
 
 if __name__ == '__main__':
     pytest.main(['-xrsv', __file__])
