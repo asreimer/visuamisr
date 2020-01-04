@@ -272,7 +272,7 @@ class Analyze():
 ####################################################################################
 
 
-    def plot_polar_beam_pattern(self, min_elevation=None):
+    def plot_polar_beam_pattern(self, min_elevation=None, show=True):
         """ Plot the beam positions on a polar plot of azimuth and zenith angle
 
         **Args**:
@@ -338,7 +338,8 @@ class Analyze():
         #plot a title
         text = fig.text(0.5, 0.92, 'Beam Pattern', horizontalalignment='center')
         text.set_size('large')
-        fig.show()
+        if show:
+            fig.show()
 
 
 ####################################################################################
@@ -359,7 +360,9 @@ class Analyze():
                                data from
           * **[clim]** (list): list of lists containing the colorbar limits for each parameter
                                plotted
-          * **[cmap]** (matplotlib.colors.Colormap): a colormap to use for each parameter
+          * **[cmap]** (matplotlib.colors.Colormap/str): list of colormaps to use for each
+                                                         parameter or the name of a built-in
+                                                         colormap
           * **[bmnum]** (int/float): the beam index of the data to be plotted ie) 5 beam mode has
                                      beams 0-4
           * **[use_range]** (bool): True if Range is to be used for the y-axis instead of altitude.
@@ -372,7 +375,6 @@ class Analyze():
             isr.rti(['density','Te','Ti','velocity'],
                     time_lim=[datetime(2016,3,2,6,0),datetime(2016,3,2,17)],
                     ylim=[100,500],bmnum=10)
-
 
         written by A. S. Reimer, 2013-07
         """
@@ -426,6 +428,9 @@ class Analyze():
             cmaps = [cmap] * len(params)
         else:
             cmaps = cmap
+
+        # now get the colormap for each string
+        cmaps = [x if isinstance(x, mpl.colors.Colormap) else pyplot.get_cmap(x) for x in cmaps]
 
         #grab parameters to be used for RTI
         times = self.data["times"]
@@ -632,7 +637,8 @@ class Analyze():
 ####################################################################################
 
 
-    def profile_plot(self, params, time, param_lim=None, bmnum=None, ylim=None, use_range=None):
+    def profile_plot(self, params, time, param_lim=None, bmnum=None, ylim=None, use_range=None,
+                     show=True):
         """ Create a profile plot
 
         **Args**:
@@ -808,7 +814,8 @@ class Analyze():
             ax.scatter(parr[tinds, bmnum, :], rang[bmnum, :] / 1000.0)
 
         #finally show the figure
-        fig.show()
+        if show:
+            fig.show()
 
         #turn warnings back on
         np.seterr(all='warn')
@@ -821,7 +828,7 @@ class Analyze():
 
 
     def plot_beams3d(self, param, time, xlim=None, ylim=None, zmax=None, clim=None, cmap=None,
-                     sym_size=5):
+                     sym_size=5, show=True):
         """ Make a plot showing ISR data along each beam in 3D.
 
         **Args**:
@@ -889,6 +896,10 @@ class Analyze():
         #Use the default colormap if necessary
         if not cmap:
             cmap = 'viridis'
+
+        # now get the colormap for each string
+        if isinstance(cmap, str):
+            cmap = pyplot.get_cmap(cmap)
 
         #Get the times that data is available and then determine the index
         #for plotting
@@ -990,7 +1001,8 @@ class Analyze():
         cbar.set_ticks(np.linspace(cbar_lim[0], cbar_lim[1], num=5))
 
         #show the figure
-        fig.show()
+        if show:
+            fig.show()
 
         #turn warnings back on
         np.seterr(all='warn')
